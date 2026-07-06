@@ -1,0 +1,18 @@
+{
+  "scenarioName": "happy_path_order",
+  "platform": "android",
+  "appPackage": "com.awsdemo.delivery",
+  "schemaVersion": 1,
+  "actions": [
+    { "type": "tap", "target": "restaurant_pizza_palace", "label": "Pizza Palace", "t": 1200 },
+    { "type": "tap", "target": "menu_add_pepperoni", "label": "Pepperoni", "t": 2600 },
+    { "type": "tap", "target": "menu_add_pepperoni", "label": "Pepperoni", "t": 3400 },
+    { "type": "tap", "target": "go_to_cart", "label": "Go to cart", "t": 4500 },
+    { "type": "assert", "target": "cart_total", "expected": "Total: $30.00", "t": 5200 },
+    { "type": "tap", "target": "place_order", "label": "Place order", "t": 5800 },
+    { "type": "input", "target": "address_input", "value": "123 Demo St", "t": 7300 },
+    { "type": "tap", "target": "confirm_payment", "label": "Confirm payment", "t": 8100 },
+    { "type": "assert", "target": "tracking_status", "expected": "Order confirmed — on the way", "t": 9000 },
+    { "type": "tap", "target": "back_home", "label": "Back home", "t": 9800 }
+  ]
+}

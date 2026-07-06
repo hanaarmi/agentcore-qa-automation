@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QA Automation Demo</title>
+<style>
+  :root { --bg:#0b1220; --panel:#0f172a; --border:#1e293b; --fg:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --ok:#22c55e; --warn:#f59e0b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system,Segoe UI,sans-serif; }
+  header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  header .badge { font-size:11px; color:var(--muted); border:1px solid var(--border); padding:3px 8px; border-radius:6px; }
+
+  /* 1단 세로 레이아웃 */
+  main { display:flex; flex-direction:column; gap:16px; padding:16px 24px; max-width:960px; margin:0 auto; }
+
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .card h2 { font-size:13px; margin:0 0 12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+  .drop { border:2px dashed var(--border); border-radius:12px; padding:28px 16px; text-align:center; color:var(--muted); cursor:pointer; transition:.15s; }
+  .drop.hover { border-color:var(--accent); color:var(--accent); background:#0d1b30; }
+  .drop b { color:var(--fg); }
+  ol.steps { margin:0; padding-left:20px; font-size:13px; line-height:1.9; max-height:240px; overflow:auto; }
+  ol.steps li.done { color:var(--ok); }
+  ol.steps li.active { color:var(--accent); font-weight:600; }
+  .tabs { display:flex; gap:8px; margin-bottom:10px; }
+  .tab { font-size:12px; padding:5px 10px; border:1px solid var(--border); border-radius:6px; cursor:pointer; color:var(--muted); }
+  .tab.on { color:var(--accent); border-color:var(--accent); }
+  pre { background:#060b16; border:1px solid var(--border); border-radius:8px; padding:12px; overflow:auto; font-size:11.5px; line-height:1.5; max-height:300px; margin:0; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  button { background:var(--accent); color:#03121f; border:0; border-radius:8px; padding:9px 16px; font-weight:600; cursor:pointer; font-size:13px; }
+  button.ghost { background:transparent; color:var(--fg); border:1px solid var(--border); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+
+  /* 실행 결과: 적당한 높이 + 스크롤 */
+  .scrollbox { max-height:420px; overflow:auto; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; }
+  .tile { background:#0b1220; border:1px solid var(--border); border-radius:10px; padding:10px; text-align:center; }
+  .tile img { width:100%; border-radius:6px; }
+  .tile .cap { font-size:11px; color:var(--muted); margin-top:6px; word-break:break-all; }
+  .tile.passed { border-color:var(--ok); }
+  .muted { color:var(--muted); font-size:12px; }
+
+  /* 상단 탭 */
+  .ltabs { display:flex; gap:10px; padding:12px 24px 0; max-width:960px; margin:0 auto; }
+  .ltab { font-size:13px; padding:8px 14px; border:1px solid var(--border); border-radius:8px 8px 0 0; cursor:pointer; color:var(--muted); background:var(--panel); }
+  .ltab.on { color:var(--accent); border-color:var(--accent); font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>QA Automation — Demo Dashboard</h1>
+  <span class="badge" id="backend">backend: …</span>
+  <span class="badge">record → convert → run</span>
+</header>
+
+<div class="ltabs">
+  <span class="ltab on" data-pane="web">🌐 Web (Playwright · Browser Tool)</span>
+  <span class="ltab" data-pane="mobile">📱 Mobile (Appium · Device Farm)</span>
+</div>
+
+<!-- ==================== MOBILE ==================== -->
+<main id="pane-mobile" style="display:none">
+  <div class="card">
+    <h2>1 · scenario.json</h2>
+    <div class="drop" id="drop">여기로 <b>scenario.json</b> 을 드래그 &amp; 드롭<br><span class="muted">또는 클릭해서 선택</span></div>
+    <input type="file" id="file" accept="application/json" hidden>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" id="sample">샘플 불러오기</button>
+      <span class="muted" id="fname">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2 · 시나리오 스텝 (자연어)</h2>
+    <ol class="steps" id="steplist"><li class="muted">JSON 을 넣으면 에이전트가 스텝을 서술합니다.</li></ol>
+  </div>
+
+  <div class="card">
+    <h2>3 · 생성된 테스트 코드</h2>
+    <div class="tabs">
+      <span class="tab on" data-t="appium">Appium (Python)</span>
+      <span class="tab" data-t="maestro">Maestro (YAML)</span>
+    </div>
+    <pre id="code">시나리오를 넣고 “변환” 을 누르세요.</pre>
+    <div class="row" style="margin-top:10px">
+      <button id="convert" disabled>변환 (에이전트 호출)</button>
+      <span class="muted" id="cstat"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4 · 실제 Device Farm 실행 <span style="color:var(--ok)">(REAL)</span></h2>
+    <div class="row" style="margin-bottom:12px">
+      <button id="realRun">실기기에서 실행</button>
+      <span class="muted" id="realStat">실제 기기에 업로드→실행→스텝별 스크린샷 수집(수 분 소요)</span>
+    </div>
+    <div class="scrollbox"><div class="tiles" id="realShots"><span class="muted">실행하면 실기기 스텝별 스크린샷이 여기 표시됩니다.</span></div></div>
+  </div>
+
+  <div class="card">
+    <h2>5 · Device Farm run 목록 · 녹화 영상 <span style="color:var(--ok)">(REAL)</span></h2>
+    <div class="row" style="margin-bottom:12px">
+      <button class="ghost" id="refreshRuns">새로고침</button>
+      <span class="muted">완료된 run 상태 · 녹화 영상 재생</span>
+    </div>
+    <div class="scrollbox" id="dfruns"><span class="muted">불러오는 중…</span></div>
+  </div>
+</main>
+
+<!-- ==================== WEB ==================== -->
+<main id="pane-web">
+  <div class="card">
+    <h2>1 · Chrome Recorder JSON</h2>
+    <div class="drop" id="wdrop">여기로 <b>Chrome Recorder JSON</b> 을 드래그 &amp; 드롭<br><span class="muted">또는 클릭해서 선택</span></div>
+    <input type="file" id="wfile" accept="application/json" hidden>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" id="wsample">샘플 불러오기 (TodoMVC)</button>
+      <span class="muted" id="wfname">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2 · 시나리오 스텝 (자연어)</h2>
+    <ol class="steps" id="wsteplist"><li class="muted">Recorder JSON 을 넣으면 에이전트가 스텝을 서술합니다.</li></ol>
+  </div>
+
+  <div class="card">
+    <h2>3 · 생성된 Playwright 코드</h2>
+    <pre id="wcode">Recorder JSON 을 넣고 “변환”.</pre>
+    <div class="row" style="margin-top:10px">
+      <button id="wconvert" disabled>변환 (에이전트 호출)</button>
+      <span class="muted" id="wcstat"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4 · 실제 Browser Tool 실행 <span style="color:var(--ok)">(REAL)</span></h2>
+    <div class="row" style="margin-bottom:12px">
+      <button id="wrun" disabled>클라우드 브라우저에서 실행</button>
+      <span class="muted" id="wrstat">관리형 Chromium 에 연결→스텝별 스크린샷 수집</span>
+    </div>
+    <div class="scrollbox"><div class="tiles" id="wshots"><span class="muted">실행하면 웹 스텝별 스크린샷이 표시됩니다.</span></div></div>
+  </div>
+
+  <div class="card">
+    <h2>5 · 라이브 뷰 <span style="color:var(--ok)">(REAL)</span></h2>
+    <div class="row" style="margin-bottom:10px"><span class="muted" id="wlivestat">실행 중 관리형 브라우저 화면을 실시간으로 표시합니다.</span></div>
+    <div id="wlive"><span class="muted">실행을 시작하면 라이브 화면이 여기 나타납니다.</span></div>
+  </div>
+
+  <div class="card">
+    <h2>6 · 변형 N개 병렬 실행 <span style="color:var(--ok)">(REAL · SCALE)</span></h2>
+    <div class="row" style="margin-bottom:12px">
+      <span class="muted">위 실행 결과(스크립트+스크린샷)를 LLM에 던져 변형을 만들고 전부 독립 세션으로 동시 실행.</span>
+    </div>
+    <div class="row" style="margin-bottom:12px">
+      변형 수 <input type="number" id="wpn" value="5" min="2" max="30" style="width:56px;background:#060b16;color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px">
+      <button id="wprun">변형 생성 + 병렬 실행</button>
+      <span class="muted" id="wpstat"></span>
+    </div>
+    <div class="scrollbox"><div class="tiles" id="wptiles"><span class="muted">실행하면 각 변형이 독립 타일로 동시에 진행됩니다.</span></div></div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+
+// backend 배지
+fetch("/backend").then(r=>r.json()).then(d=>$("#backend").textContent="backend: "+d.backend).catch(()=>$("#backend").textContent="backend: local");
+
+// ---- 상단 탭 전환 ----
+document.querySelectorAll(".ltab").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll(".ltab").forEach(x=>x.classList.remove("on"));
+  t.classList.add("on");
+  const pane = t.dataset.pane;
+  $("#pane-mobile").style.display = pane==="mobile" ? "flex" : "none";
+  $("#pane-web").style.display    = pane==="web" ? "flex" : "none";
+}));
+
+/* ============ MOBILE ============ */
+let scenario=null, steps=[], generated={appium:"",maestro:""}, activeTab="appium", pollTimer=null;
+
+const drop=$("#drop"), fileInput=$("#file");
+drop.addEventListener("click",()=>fileInput.click());
+drop.addEventListener("dragover",e=>{e.preventDefault();drop.classList.add("hover");});
+drop.addEventListener("dragleave",()=>drop.classList.remove("hover"));
+drop.addEventListener("drop",e=>{e.preventDefault();drop.classList.remove("hover");const f=e.dataTransfer.files[0];if(f)readScenario(f);});
+fileInput.addEventListener("change",e=>{const f=e.target.files[0];if(f)readScenario(f);});
+$("#sample").addEventListener("click",async()=>{const j=await(await fetch("/sample")).json();loadScenario(j,"happy_path_order.json (sample)");});
+
+function readScenario(f){const r=new FileReader();r.onload=()=>{try{loadScenario(JSON.parse(r.result),f.name);}catch{alert("JSON 파싱 실패");}};r.readAsText(f);}
+function loadScenario(obj,name){
+  scenario=obj; $("#fname").textContent=name; $("#convert").disabled=false;
+  $("#steplist").innerHTML='<li class="muted">스텝 생성 중…</li>';
+  fetch("/convert",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scenario,target:"steps"})})
+    .then(r=>r.json()).then(d=>{
+      steps=d.output.split("\n").map(s=>s.replace(/^\s*\d+[.)]\s*/,"").trim()).filter(Boolean);
+      renderSteps(-1);
+    });
+}
+function renderSteps(active){$("#steplist").innerHTML=steps.map((s,i)=>`<li class="${i<active?'done':(i===active?'active':'')}">${s}</li>`).join("");}
+
+document.querySelectorAll("#pane-mobile .tab").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll("#pane-mobile .tab").forEach(x=>x.classList.remove("on"));
+  t.classList.add("on"); activeTab=t.dataset.t; $("#code").textContent=generated[activeTab]||"아직 생성되지 않았습니다.";
+}));
+$("#convert").addEventListener("click",async()=>{
+  $("#convert").disabled=true; $("#cstat").textContent="에이전트 변환 중…";
+  for(const target of ["appium","maestro"]){
+    const d=await(await fetch("/convert",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({scenario,target})})).json();
+    generated[target]=d.output;
+  }
+  $("#code").textContent=generated[activeTab]; $("#cstat").textContent="완료 ✓"; $("#convert").disabled=false;
+});
+
+// 4 · 실제 Device Farm 실행
+$("#realRun").addEventListener("click",async()=>{
+  $("#realRun").disabled=true; $("#realStat").textContent="시작 중…";
+  await fetch("/real/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run_name:"dashboard-real-run"})});
+  if(pollTimer)clearInterval(pollTimer); pollTimer=setInterval(pollReal,3000); pollReal();
+});
+async function pollReal(){
+  const s=await(await fetch("/real/status")).json();
+  if(s.status==="IDLE")return;
+  if(s.status==="ERROR"){$("#realStat").textContent="오류: "+(s.error||""); $("#realRun").disabled=false; clearInterval(pollTimer); return;}
+  const done=s.status==="COMPLETED";
+  $("#realStat").textContent=done?`완료 · ${s.result||""} · 스크린샷 ${s.shots.length}장`:`실행 중 · ${s.phase||s.status}…`;
+  if(done&&s.shots&&s.shots.length){
+    $("#realShots").innerHTML=s.shots.map(n=>`<div class="tile"><img src="/real/shot/${encodeURIComponent(n)}"><div class="cap">${n.replace(/-.*$/,'')}</div></div>`).join("");
+    $("#realRun").disabled=false; clearInterval(pollTimer);
+  } else if(!done){ $("#realShots").innerHTML='<span class="muted">실기기에서 실행 중… 완료되면 스텝별 스크린샷이 나타납니다.</span>'; }
+}
+
+// 5 · run 목록 + 영상
+let _lastRunsSig="", _videoOpen=false;
+async function loadRuns(){
+  if(_videoOpen)return;
+  const d=await(await fetch("/df/runs")).json();
+  if(d.error){$("#dfruns").innerHTML=`<span class="muted">${d.error}</span>`;return;}
+  if(!d.runs.length){$("#dfruns").innerHTML='<span class="muted">아직 실행된 run 이 없습니다.</span>';return;}
+  const sig=JSON.stringify(d.runs.map(x=>[x.arn,x.status,x.result,x.counters]));
+  if(sig===_lastRunsSig)return; _lastRunsSig=sig;
+  $("#dfruns").innerHTML=d.runs.map(run=>{
+    const done=run.status==="COMPLETED";
+    const color=done?(run.result==="PASSED"?"var(--ok)":"#f87171"):"var(--accent)";
+    const c=run.counters;
+    const vbtn=done?`<button class="ghost" onclick="showVideo('${run.arn}')">▶ 녹화 영상</button>`:"";
+    return `<div class="card" style="margin-bottom:10px;padding:12px">
+      <div class="row" style="justify-content:space-between"><b>${run.name}</b>
+      <span style="color:${color};font-family:monospace;font-size:12px">${run.status}${run.result&&run.result!=="PENDING"?" · "+run.result:""}</span></div>
+      <div class="cap muted">device: ${run.device||"provisioning…"} · tests ${c.passed}/${c.total} passed</div>
+      <div style="margin-top:8px">${vbtn}</div><div id="vid-${run.arn.split('/').pop().slice(0,8)}"></div></div>`;
+  }).join("");
+}
+async function showVideo(arn){
+  const slot="#vid-"+arn.split('/').pop().slice(0,8); _videoOpen=true;
+  $(slot).innerHTML='<span class="muted">영상 불러오는 중…</span>';
+  const d=await(await fetch("/df/video?arn="+encodeURIComponent(arn))).json();
+  if(!d.count){$(slot).innerHTML='<span class="muted">영상 없음</span>';_videoOpen=false;return;}
+  $(slot).innerHTML=`<video src="/df/video_stream?arn=${encodeURIComponent(arn)}&i=0" controls autoplay preload="auto" style="width:100%;max-width:320px;margin-top:8px;border-radius:8px"></video><div style="margin-top:6px"><button class="ghost" onclick="closeVideo()">✕ 영상 닫기</button></div>`;
+}
+function closeVideo(){_videoOpen=false;_lastRunsSig="";loadRuns();}
+$("#refreshRuns").addEventListener("click",loadRuns);
+loadRuns(); setInterval(loadRuns,10000);
+
+/* ============ WEB ============ */
+let recording=null, wPoll=null;
+const wdrop=$("#wdrop"), wfile=$("#wfile");
+wdrop.addEventListener("click",()=>wfile.click());
+wdrop.addEventListener("dragover",e=>{e.preventDefault();wdrop.classList.add("hover");});
+wdrop.addEventListener("dragleave",()=>wdrop.classList.remove("hover"));
+wdrop.addEventListener("drop",e=>{e.preventDefault();wdrop.classList.remove("hover");const f=e.dataTransfer.files[0];if(f)readRec(f);});
+wfile.addEventListener("change",e=>{const f=e.target.files[0];if(f)readRec(f);});
+$("#wsample").addEventListener("click",async()=>{const j=await(await fetch("/web/sample")).json();loadRec(j,"todomvc_recording.json (sample)");});
+function readRec(f){const r=new FileReader();r.onload=()=>{try{loadRec(JSON.parse(r.result),f.name);}catch{alert("JSON 파싱 실패");}};r.readAsText(f);}
+function loadRec(obj,name){
+  recording=obj; $("#wfname").textContent=name; $("#wconvert").disabled=false;
+  $("#wcode").textContent="“변환”을 눌러 Playwright 코드를 생성하세요.";
+  // 자연어 스텝 생성 (Mobile 과 동일하게)
+  $("#wsteplist").innerHTML='<li class="muted">스텝 생성 중…</li>';
+  fetch("/web/steps",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({recording})})
+    .then(r=>r.json()).then(d=>{
+      const lines=d.output.split("\n").map(s=>s.replace(/^\s*\d+[.)]\s*/,"").trim()).filter(Boolean);
+      $("#wsteplist").innerHTML=lines.map(s=>`<li>${s}</li>`).join("");
+    });
+}
+
+$("#wconvert").addEventListener("click",async()=>{
+  $("#wconvert").disabled=true; $("#wcstat").textContent="에이전트 변환 중…";
+  const d=await(await fetch("/web/convert",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({recording})})).json();
+  $("#wcode").textContent=d.output; $("#wcstat").textContent="완료 ✓"; $("#wconvert").disabled=false; $("#wrun").disabled=false;
+});
+$("#wrun").addEventListener("click",async()=>{
+  $("#wrun").disabled=true; $("#wrstat").textContent="시작 중…";
+  _liveShown=false; stopLivePreview(); $("#wlive").innerHTML='<span class="muted">브라우저 세션 여는 중…</span>';
+  await fetch("/web/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({recording})});
+  if(wPoll)clearInterval(wPoll); wPoll=setInterval(pollWeb,2500); pollWeb();
+});
+let _liveShown=false, _liveTimer=null;
+function startLivePreview(){
+  if(_liveShown)return; _liveShown=true;
+  $("#wlivestat").textContent="준실시간 프리뷰 (~1초마다 갱신)";
+  $("#wlive").innerHTML='<img id="wliveimg" style="width:100%;max-width:720px;border:1px solid var(--border);border-radius:8px">';
+  _liveTimer=setInterval(()=>{ const im=$("#wliveimg"); if(im) im.src="/web/live?t="+Date.now(); }, 1000);
+}
+function stopLivePreview(){ if(_liveTimer){clearInterval(_liveTimer); _liveTimer=null;} }
+
+async function pollWeb(){
+  const s=await(await fetch("/web/status")).json();
+  if(s.status==="IDLE")return;
+  if(s.live){ startLivePreview(); }
+  if(s.status==="ERROR"){$("#wrstat").textContent="오류: "+(s.error||""); $("#wrun").disabled=false; clearInterval(wPoll); stopLivePreview(); return;}
+  const done=s.status==="COMPLETED";
+  $("#wrstat").textContent=done?`완료 · ${s.result||""} · 스크린샷 ${s.shots.length}장`:`실행 중 · ${s.phase||s.status}…`;
+  if(done&&s.shots&&s.shots.length){
+    $("#wshots").innerHTML=s.shots.map(n=>`<div class="tile"><img src="/web/shot/${encodeURIComponent(n)}"><div class="cap">${n.replace(/\.png$/,'')}</div></div>`).join("");
+    $("#wrun").disabled=false; clearInterval(wPoll); stopLivePreview();
+    $("#wlivestat").textContent="세션 종료됨 — 위 스크린샷으로 각 스텝 확인";
+  } else if(!done){ $("#wshots").innerHTML='<span class="muted">클라우드 브라우저에서 실행 중…</span>'; }
+}
+
+// 6 · 변형 N개 병렬 실행
+let wpPoll=null, wpRunId=null;
+$("#wprun").addEventListener("click",async()=>{
+  const n=parseInt($("#wpn").value)||5;
+  $("#wprun").disabled=true; $("#wpstat").textContent=`변형 ${n}개 생성 중(LLM)…`;
+  // 즉시 옛 결과 제거(직전 done 타일이 남아 '즉시 3/3 PASSED'로 보이는 문제 방지).
+  $("#wptiles").innerHTML='<span class="muted">변형 생성 중… (스크린샷 분석 → 시나리오 예상 → 스크립트)</span>';
+  wpRunId=null;
+  const r=await(await fetch("/web/parallel/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({n})})).json();
+  if(r.error){$("#wpstat").textContent=r.error; $("#wprun").disabled=false; return;}
+  wpRunId=r.runId;   // 이 실행의 runId — 이후 이 run 의 상태만 신뢰
+  if(wpPoll)clearInterval(wpPoll); wpPoll=setInterval(pollParallel,2000); pollParallel();
+});
+async function pollParallel(){
+  const s=await(await fetch("/web/parallel/status")).json();
+  // 내 실행(runId)과 다른 응답(옛 run 잔여)은 무시.
+  if(wpRunId!=null && s.runId!=null && s.runId!==wpRunId) return;
+  if(s.error){$("#wpstat").textContent="오류: "+s.error; clearInterval(wpPoll); $("#wprun").disabled=false; return;}
+  if(s.phase==="generating"){$("#wpstat").textContent=`변형 ${s.n}개 생성 중(LLM)…`; return;}
+  const jobs=s.jobs||[];
+  const done=jobs.length&&jobs.every(j=>j.status==="completed");
+  const passed=jobs.filter(j=>j.result==="PASSED").length;
+  $("#wpstat").textContent=done?`완료 · ${passed}/${jobs.length} PASSED`:`병렬 실행 중 · ${jobs.filter(j=>j.status==='completed').length}/${jobs.length} 완료`;
+  $("#wptiles").innerHTML=jobs.map(j=>{
+    const color=j.status==="completed"?(j.result==="PASSED"?"var(--ok)":"#f87171"):"var(--accent)";
+    // 실행 중이면 라이브 프레임, 완료면 마지막 스텝 스크린샷.
+    let img;
+    if(j.status!=="completed" && j.live){ img=`<img src="/web/parallel/live/${j.id}?t=${Date.now()}" style="width:100%;border-radius:6px">`; }
+    else if(j.shots&&j.shots.length){ img=`<img src="/web/parallel/shot/${j.id}/${encodeURIComponent(j.shots[j.shots.length-1])}" style="width:100%;border-radius:6px">`; }
+    else { img='<div class="muted" style="padding:24px">…</div>'; }
+    const title = j.title ? `<div class="cap" style="color:var(--fg);font-weight:600;min-height:20px">${j.title}</div>` : "";
+    const desc = j.desc ? `<div class="cap" style="min-height:32px">${j.desc}</div>` : "";
+    return `<div class="tile ${j.result==='PASSED'?'passed':''}">${img}
+      <div class="cap">#${j.id+1} · <span style="color:${color}">${j.status==="completed"?j.result:(j.phase||j.status)}</span></div>
+      ${title}${desc}</div>`;
+  }).join("");
+  if(done){ clearInterval(wpPoll); $("#wprun").disabled=false; }
+}
+</script>
+</body>
+</html>

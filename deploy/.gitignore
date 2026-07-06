@@ -1,0 +1,7 @@
+.venv/
+cdk.out/
+__pycache__/
+*.pyc
+agent/.bedrock_agentcore/
+agent/.bedrock_agentcore.yaml
+.DS_Store

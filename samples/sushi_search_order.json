@@ -1,0 +1,19 @@
+{
+  "scenarioName": "sushi_search_order",
+  "platform": "android",
+  "appPackage": "com.awsdemo.delivery",
+  "schemaVersion": 1,
+  "actions": [
+    { "type": "input", "target": "search_box", "value": "Sushi", "t": 900 },
+    { "type": "tap", "target": "restaurant_sushi_spot", "label": "Sushi Spot", "t": 2000 },
+    { "type": "tap", "target": "menu_add_tuna", "label": "Tuna Roll", "t": 3200 },
+    { "type": "tap", "target": "menu_add_miso", "label": "Miso Soup", "t": 4100 },
+    { "type": "tap", "target": "go_to_cart", "label": "Go to cart", "t": 5200 },
+    { "type": "assert", "target": "cart_total", "expected": "Total: $21.00", "t": 5900 },
+    { "type": "tap", "target": "place_order", "label": "Place order", "t": 6500 },
+    { "type": "input", "target": "address_input", "value": "7 Ocean Blvd", "t": 8000 },
+    { "type": "tap", "target": "confirm_payment", "label": "Confirm payment", "t": 8900 },
+    { "type": "assert", "target": "tracking_status", "expected": "Order confirmed — on the way", "t": 9800 },
+    { "type": "tap", "target": "back_home", "label": "Back home", "t": 10600 }
+  ]
+}

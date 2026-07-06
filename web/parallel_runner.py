@@ -1,0 +1,126 @@
+"""병렬 러너 — N개의 독립 Browser Tool 세션을 동시에 실행.
+
+각 변형 스크립트를 스레드 1개 = 세션 1개로 돌린다(SDK에 async 클라이언트 없음 → 스레드).
+각 세션은 독립 microVM(완전 격리) — 우리 박스엔 부하 없음(실행이 전부 AWS 쪽).
+반드시 stop() 으로 세션 정리(idle 과금 방지).
+
+상태/스크린샷은 job 별로 인메모리 추적 → 대시보드가 폴링.
+"""
+from __future__ import annotations
+
+import re
+import threading
+from pathlib import Path
+
+REGION = "us-west-2"
+SESSION_TIMEOUT = 300  # 데모용 짧게
+
+# 코드 펜스 제거(LLM 이 ```python ... ``` 로 감싸는 경우 대비).
+_FENCE = re.compile(r"^```[a-zA-Z]*\n|\n```$")
+
+
+def _clean(code: str) -> str:
+    code = code.strip()
+    if code.startswith("```"):
+        code = re.sub(r"^```[a-zA-Z]*\n", "", code)
+        code = re.sub(r"\n```$", "", code)
+    return code
+
+
+def _load_run_fn(code: str):
+    ns: dict = {}
+    exec(compile(_clean(code), "<variation>", "exec"), ns)  # noqa: S102
+    fn = ns.get("run")
+    if fn is None:
+        raise RuntimeError("variation 에 async def run(page) 없음")
+    return fn
+
+
+class ParallelJobs:
+    """병렬 잡 상태 관리."""
+
+    def __init__(self, out_dir: Path):
+        self.out_dir = out_dir
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+        self.jobs: dict[int, dict] = {}
+        self.lock = threading.Lock()
+
+    def _set(self, i: int, **kw):
+        with self.lock:
+            self.jobs[i].setdefault("id", i)
+            self.jobs[i].update(kw)
+
+    def snapshot(self) -> list[dict]:
+        with self.lock:
+            return [dict(j) for _, j in sorted(self.jobs.items())]
+
+    def start(self, scripts: list[str]) -> None:
+        with self.lock:
+            self.jobs = {i: {"id": i, "status": "starting", "phase": "queued",
+                             "result": None, "shots": [], "live": False, "error": None}
+                         for i in range(len(scripts))}
+        for i, code in enumerate(scripts):
+            threading.Thread(target=self._run_one, args=(i, code), daemon=True).start()
+
+    def _run_one(self, i: int, code: str) -> None:
+        import asyncio
+        from bedrock_agentcore.tools.browser_client import BrowserClient
+        from playwright.async_api import async_playwright
+
+        shot_dir = self.out_dir / f"job_{i:02d}"
+        shot_dir.mkdir(parents=True, exist_ok=True)
+        live_path = shot_dir / "_live.png"
+
+        async def drive():
+            run_fn = _load_run_fn(code)
+            client = BrowserClient(REGION)
+            self._set(i, status="running", phase="starting session")
+            try:
+                client.start(identifier="aws.browser.v1", name=f"var-{i}",
+                             session_timeout_seconds=SESSION_TIMEOUT)
+                ws_url, headers = client.generate_ws_headers()
+                self._set(i, phase="connected", live=True)
+                async with async_playwright() as pw:
+                    browser = await pw.chromium.connect_over_cdp(ws_url, headers=headers)
+                    stop = asyncio.Event()
+                    grab = None
+                    try:
+                        ctx = browser.contexts[0] if browser.contexts else await browser.new_context()
+                        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+
+                        import os as _os
+                        _os.environ["WEB_SHOT_DIR"] = str(shot_dir)
+
+                        async def grabber():
+                            while not stop.is_set():
+                                try:
+                                    await page.screenshot(path=str(live_path))
+                                except Exception:  # noqa: BLE001
+                                    pass
+                                try:
+                                    await asyncio.wait_for(stop.wait(), timeout=1.0)
+                                except asyncio.TimeoutError:
+                                    pass
+                        grab = asyncio.create_task(grabber())
+                        await run_fn(page)
+                        self._set(i, status="completed", result="PASSED")
+                    except Exception as e:  # noqa: BLE001
+                        self._set(i, status="completed", result="FAILED", error=str(e))
+                    finally:
+                        stop.set()
+                        if grab:
+                            try: await grab
+                            except Exception: pass  # noqa: BLE001,E722
+                        await browser.close()
+            finally:
+                try:
+                    client.stop()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._set(i, live=False, phase="done",
+                          shots=sorted(p.name for p in shot_dir.glob("step_*.png")))
+
+        try:
+            asyncio.run(drive())
+        except Exception as e:  # noqa: BLE001
+            self._set(i, status="completed", result="FAILED", error=str(e), live=False)

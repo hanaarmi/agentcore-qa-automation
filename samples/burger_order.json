@@ -1,0 +1,18 @@
+{
+  "scenarioName": "burger_order",
+  "platform": "android",
+  "appPackage": "com.awsdemo.delivery",
+  "schemaVersion": 1,
+  "actions": [
+    { "type": "tap", "target": "restaurant_burger_barn", "label": "Burger Barn", "t": 1000 },
+    { "type": "tap", "target": "menu_add_cheese", "label": "Cheeseburger", "t": 2200 },
+    { "type": "tap", "target": "menu_add_fries", "label": "Fries", "t": 3100 },
+    { "type": "tap", "target": "go_to_cart", "label": "Go to cart", "t": 4300 },
+    { "type": "assert", "target": "cart_total", "expected": "Total: $15.00", "t": 5000 },
+    { "type": "tap", "target": "place_order", "label": "Place order", "t": 5600 },
+    { "type": "input", "target": "address_input", "value": "42 Grill Ave", "t": 7000 },
+    { "type": "tap", "target": "confirm_payment", "label": "Confirm payment", "t": 7900 },
+    { "type": "assert", "target": "tracking_status", "expected": "Order confirmed — on the way", "t": 8800 },
+    { "type": "tap", "target": "back_home", "label": "Back home", "t": 9600 }
+  ]
+}

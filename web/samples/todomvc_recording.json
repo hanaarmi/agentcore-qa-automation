@@ -1,0 +1,77 @@
+{
+  "title": "todomvc_add_and_complete",
+  "steps": [
+    {
+      "type": "setViewport",
+      "width": 1280,
+      "height": 800,
+      "deviceScaleFactor": 1,
+      "isMobile": false,
+      "hasTouch": false,
+      "isLandscape": false
+    },
+    {
+      "type": "navigate",
+      "url": "https://demo.playwright.dev/todomvc",
+      "assertedEvents": [
+        { "type": "navigation", "url": "https://demo.playwright.dev/todomvc", "title": "" }
+      ]
+    },
+    {
+      "type": "click",
+      "selectors": [
+        [".new-todo"],
+        ["input.new-todo"],
+        ["aria/What needs to be done?"]
+      ],
+      "offsetX": 100,
+      "offsetY": 12
+    },
+    {
+      "type": "change",
+      "value": "Buy milk",
+      "selectors": [[".new-todo"], ["input.new-todo"]]
+    },
+    {
+      "type": "keyDown",
+      "key": "Enter"
+    },
+    {
+      "type": "keyUp",
+      "key": "Enter"
+    },
+    {
+      "type": "change",
+      "value": "Write demo",
+      "selectors": [[".new-todo"], ["input.new-todo"]]
+    },
+    {
+      "type": "keyDown",
+      "key": "Enter"
+    },
+    {
+      "type": "keyUp",
+      "key": "Enter"
+    },
+    {
+      "type": "click",
+      "selectors": [
+        [".todo-list li:nth-child(1) .toggle"],
+        ["aria/Toggle Todo"]
+      ],
+      "offsetX": 15,
+      "offsetY": 15,
+      "assertedEvents": []
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [[".todo-list li.completed"]],
+      "count": 1
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [[".todo-count"]],
+      "count": 1
+    }
+  ]
+}
