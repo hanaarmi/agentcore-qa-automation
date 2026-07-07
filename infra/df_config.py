@@ -87,15 +87,16 @@ def _discover(region: str) -> dict:
 def resolve_config() -> dict:
     """모바일 경로 설정 딕셔너리 {region, projectArn, devicePoolArn, ...} 반환.
 
-    config.json → env ARN → 이름 조회 순. 아무 것도 못 구하면 RuntimeError.
+    우선순위(명시적 의도가 캐시를 이긴다):
+      1) env ARN(DEVICEFARM_PROJECT_ARN) — 직접 지정.
+      2) config.json 캐시. 단 env 이름 override(DEVICEFARM_PROJECT/POOL)와 다르면 stale 로
+         보고 무시 → 재조회. (예: 고유 이름으로 재배포했는데 예전 config.json 이 남은 경우)
+      3) 이름으로 Device Farm 조회(+캐시). CDK 배포만 했어도 여기서 채워진다.
+    아무 것도 못 구하면 RuntimeError.
     """
-    # 1) 기존 config.json
-    if CONFIG_PATH.is_file():
-        return json.loads(CONFIG_PATH.read_text())
-
     region = _region()
 
-    # 2) env 로 직접 지정된 ARN
+    # 1) env 로 직접 지정된 ARN 이 최우선.
     project_arn = os.environ.get("DEVICEFARM_PROJECT_ARN")
     if project_arn:
         return {
@@ -104,5 +105,17 @@ def resolve_config() -> dict:
             "devicePoolArn": os.environ.get("DEVICEFARM_POOL_ARN"),
         }
 
-    # 3) 이름으로 조회(+캐시). CDK 배포만 했어도 여기서 채워진다.
+    # 2) 캐시(config.json) — env 이름 override 와 충돌하면 무시(stale).
+    want_project = os.environ.get("DEVICEFARM_PROJECT")
+    want_pool = os.environ.get("DEVICEFARM_POOL")
+    if CONFIG_PATH.is_file():
+        cfg = json.loads(CONFIG_PATH.read_text())
+        stale = (
+            (want_project and cfg.get("projectName") != want_project)
+            or (want_pool and cfg.get("devicePoolName") != want_pool)
+        )
+        if not stale:
+            return cfg
+
+    # 3) 이름으로 조회(+캐시).
     return _discover(region)
