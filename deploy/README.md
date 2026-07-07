@@ -123,6 +123,15 @@ AGENT_BACKEND=agentcore AGENTCORE_ARN=<AgentRuntimeArn> AGENTCORE_REGION=us-west
 ```
 GitHub Pages 같은 정적 호스팅으로는 못 올립니다(백엔드가 AWS 자격증명으로 런타임을 호출).
 
+**웹 탭**은 위 실행만으로 버튼 클릭으로 동작합니다(추가 셋업 없음).
+**모바일 탭**(Device Farm)은 대시보드가 시작 시 이 스택이 만든 Device Farm 프로젝트/풀을
+**이름으로 자동 조회**해 씁니다(별도 셋업 스크립트 불필요). 배포 때 `-c deviceFarmProject=` /
+`-c devicePool=` 로 이름을 바꿨다면, 대시보드에도 같은 이름을 `DEVICEFARM_PROJECT=` /
+`DEVICEFARM_POOL=` env 로 알려주세요.
+
+> 비용 주의: 모바일 탭에서 **실행**까지 누르면 Device Farm 실기기 run 이 스케줄되어 과금됩니다
+> ($0.17/분, 최초 1,000분 무료). 웹 탭만으로도 핵심(AgentCore Runtime 병렬 실행)은 확인됩니다.
+
 ## 검증만 (배포 안 함)
 
 ```bash

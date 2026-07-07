@@ -75,8 +75,9 @@ def ensure_device_pool(client, project_arn: str, name: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--project", default="qa-automation-demo")
-    ap.add_argument("--pool", default="android-phones")
+    from df_config import DEFAULT_PROJECT_NAME, DEFAULT_POOL_NAME
+    ap.add_argument("--project", default=DEFAULT_PROJECT_NAME)
+    ap.add_argument("--pool", default=DEFAULT_POOL_NAME)
     ap.add_argument("--region", default=DEFAULT_REGION)
     args = ap.parse_args()
 

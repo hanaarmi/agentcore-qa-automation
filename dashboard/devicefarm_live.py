@@ -6,29 +6,26 @@
   완료 후엔 녹화 영상(VIDEO) 아티팩트 URL 을 제공한다.
 
 환경변수:
-    DEVICEFARM_PROJECT_ARN   조회할 프로젝트 (없으면 config.json 사용)
+    DEVICEFARM_PROJECT_ARN   조회할 프로젝트 (없으면 config.json → 이름 조회 순)
 """
 from __future__ import annotations
 
-import json
-import os
+import sys
 from pathlib import Path
 
 import boto3
 
-_CONFIG = Path(__file__).resolve().parent.parent / "infra" / "config.json"
+# infra/ 의 공용 설정 리졸버 재사용(config.json → env → 이름 조회).
+_INFRA = Path(__file__).resolve().parent.parent / "infra"
+if str(_INFRA) not in sys.path:
+    sys.path.insert(0, str(_INFRA))
+from df_config import resolve_config  # noqa: E402
 
 
 def _client_and_project():
-    region = os.environ.get("AGENTCORE_REGION", "us-west-2")
-    project = os.environ.get("DEVICEFARM_PROJECT_ARN")
-    if not project and _CONFIG.is_file():
-        cfg = json.loads(_CONFIG.read_text())
-        project = cfg["projectArn"]
-        region = cfg.get("region", region)
-    if not project:
-        raise RuntimeError("Device Farm 프로젝트 ARN 없음 (config.json 또는 env 필요)")
-    return boto3.client("devicefarm", region_name=region), project
+    cfg = resolve_config()
+    region = cfg.get("region", "us-west-2")
+    return boto3.client("devicefarm", region_name=region), cfg["projectArn"]
 
 
 def list_runs(limit: int = 10) -> list[dict]:

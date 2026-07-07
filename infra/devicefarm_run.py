@@ -18,24 +18,22 @@
 from __future__ import annotations
 
 import argparse
-import json
 import time
 from pathlib import Path
 
 import boto3
 import requests  # presigned URL PUT 용
 
-CONFIG_PATH = Path(__file__).with_name("config.json")
 POLL_SECONDS = 15
 
 
 def load_config() -> dict:
-    if not CONFIG_PATH.is_file():
-        raise SystemExit(
-            f"config.json 없음 ({CONFIG_PATH}). 모바일(Device Farm) 경로는 먼저 셋업이 필요합니다:\n"
-            "  python infra/devicefarm_setup.py --region us-west-2\n"
-            "(웹 경로만 쓸 거면 이 스크립트는 실행할 필요가 없습니다.)")
-    return json.loads(CONFIG_PATH.read_text())
+    # config.json → env → CDK 가 만든 프로젝트/풀 이름 조회 순(df_config).
+    from df_config import resolve_config
+    try:
+        return resolve_config()
+    except RuntimeError as e:
+        raise SystemExit(str(e))
 
 
 def _upload_type_for(test_type: str, is_app: bool) -> str:
