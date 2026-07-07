@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -22,8 +23,9 @@ from strands.models import BedrockModel  # noqa: E402
 from prompts import PLAYWRIGHT_VARIATION_SYSTEM, SCENARIO_BRAINSTORM_SYSTEM  # noqa: E402
 from convert import _extract_text  # noqa: E402
 
-MODEL_ID = "us.anthropic.claude-opus-4-8"
-REGION = "us-west-2"
+# 모델은 env(QA_MODEL_ID)로 재정의 가능. 미설정 시 Opus 4.8. (배포 시 CDK context 로 주입)
+MODEL_ID = os.environ.get("QA_MODEL_ID", "us.anthropic.claude-opus-4-8")
+REGION = os.environ.get("AWS_REGION", "us-west-2")
 
 # 브레인스토밍 실패 시 최소한의 폴백 브리프.
 _FALLBACK = [

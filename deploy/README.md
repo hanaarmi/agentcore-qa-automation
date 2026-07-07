@@ -78,6 +78,7 @@ AWS_REGION=us-west-2 CDK_DEFAULT_REGION=us-west-2 npx aws-cdk@2 deploy --app "./
 | `runtimeName` | `qaConvertAgent` | AgentCore Runtime 이름 (`[a-zA-Z][a-zA-Z0-9_]{0,47}`) |
 | `deviceFarmProject` | `qa-automation-demo` | Device Farm 프로젝트 이름 |
 | `devicePool` | `android-phones` | Device Pool 이름 |
+| `modelId` | `us.anthropic.claude-opus-4-8` | 생성/변형에 쓰는 Bedrock 모델 (Runtime 에 `QA_MODEL_ID` env 로 주입) |
 
 예시:
 ```bash
@@ -85,10 +86,13 @@ AWS_REGION=us-west-2 CDK_DEFAULT_REGION=us-west-2 \
   npx aws-cdk@2 deploy --app "./.venv/bin/python app.py" \
   -c runtimeName=myQaAgent \
   -c deviceFarmProject=my-qa-project \
-  -c devicePool=my-android-phones
+  -c devicePool=my-android-phones \
+  -c modelId=us.anthropic.claude-sonnet-4-5-20250929-v1:0
 ```
 
 > 계정마다 이름 충돌을 피하려면 `runtimeName` 을 고유하게 주는 것을 권장합니다.
+> `modelId` 는 **본인 계정에서 Model access 가 활성화된** inference profile/모델 ID 여야 합니다
+> (미설정 시 Opus 4.8). 사전 준비 2번의 모델 활성화 대상과 일치시키세요.
 
 ## 배포 검증 (invoke)
 

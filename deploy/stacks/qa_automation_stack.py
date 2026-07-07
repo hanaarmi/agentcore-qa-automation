@@ -100,6 +100,9 @@ class QaAutomationStack(Stack):
         runtime_name = self.node.try_get_context("runtimeName") or "qaConvertAgent"
         df_project_name = self.node.try_get_context("deviceFarmProject") or "qa-automation-demo"
         device_pool_name = self.node.try_get_context("devicePool") or "android-phones"
+        # 생성/변형에 쓰는 Bedrock 모델. 런타임 코드는 QA_MODEL_ID env 로 읽는다.
+        # 계정에서 활성화된 모델(Model access)로 바꾸려면 -c modelId=... 로 재정의.
+        model_id = self.node.try_get_context("modelId") or "us.anthropic.claude-opus-4-8"
 
         # --- AgentCore Runtime: agent/ 코드 + 의존성을 direct-code-deploy ---
         artifact = agentcore.AgentRuntimeArtifact.from_code_asset(
@@ -121,7 +124,7 @@ class QaAutomationStack(Stack):
             runtime_name=runtime_name,
             agent_runtime_artifact=artifact,
             protocol_configuration=agentcore.ProtocolType.HTTP,
-            environment_variables={"AWS_REGION": region},
+            environment_variables={"AWS_REGION": region, "QA_MODEL_ID": model_id},
         )
 
         # --- 실행 역할에 필요한 권한 추가 (L2 자동 역할에 얹음) ---
@@ -185,4 +188,5 @@ class QaAutomationStack(Stack):
         CfnOutput(self, "AgentRuntimeArn", value=runtime.agent_runtime_arn,
                   description="dashboard AGENTCORE_ARN 에 설정")
         CfnOutput(self, "Region", value=region)
+        CfnOutput(self, "ModelId", value=model_id, description="Runtime 이 사용하는 Bedrock 모델")
         CfnOutput(self, "DeviceFarmProjectArn", value=df_project.attr_arn)

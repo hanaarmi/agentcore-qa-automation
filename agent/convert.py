@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -20,9 +21,10 @@ from strands.models import BedrockModel
 
 from prompts import SYSTEM_BY_TARGET
 
-# 이 계정(us-west-2)에서 활성 확인된 Opus 4.8 inference profile.
-MODEL_ID = "us.anthropic.claude-opus-4-8"
-REGION = "us-west-2"
+# 모델은 배포 시 CDK context(-c modelId=...)로 Runtime 환경변수 QA_MODEL_ID 에 주입된다.
+# 미설정 시 기본값(Opus 4.8 inference profile). 로컬 실행 시 export QA_MODEL_ID 로 변경 가능.
+MODEL_ID = os.environ.get("QA_MODEL_ID", "us.anthropic.claude-opus-4-8")
+REGION = os.environ.get("AWS_REGION", "us-west-2")
 
 # target -> 기본 출력 확장자
 EXT = {"appium": "py", "maestro": "yaml", "steps": "txt"}
