@@ -94,6 +94,13 @@ class QaAutomationStack(Stack):
         region = self.region
         account = self.account
 
+        # --- 커스터마이즈 가능한 이름 (cdk deploy -c <key>=<value> 로 재정의) ---
+        #   예) cdk deploy -c runtimeName=myQaAgent -c deviceFarmProject=my-qa -c devicePool=my-phones
+        #   재정의 안 하면 아래 기본값 사용. (배포 계정마다 고칠 필요 있는 것들)
+        runtime_name = self.node.try_get_context("runtimeName") or "qaConvertAgent"
+        df_project_name = self.node.try_get_context("deviceFarmProject") or "qa-automation-demo"
+        device_pool_name = self.node.try_get_context("devicePool") or "android-phones"
+
         # --- AgentCore Runtime: agent/ 코드 + 의존성을 direct-code-deploy ---
         artifact = agentcore.AgentRuntimeArtifact.from_code_asset(
             path="../agent",
@@ -111,7 +118,7 @@ class QaAutomationStack(Stack):
 
         runtime = agentcore.Runtime(
             self, "QaRuntime",
-            runtime_name="wbkQaConvert",
+            runtime_name=runtime_name,
             agent_runtime_artifact=artifact,
             protocol_configuration=agentcore.ProtocolType.HTTP,
             environment_variables={"AWS_REGION": region},
@@ -156,11 +163,11 @@ class QaAutomationStack(Stack):
         # --- AWS Device Farm 프로젝트 + Device Pool (모바일) ---
         df_project = devicefarm.CfnProject(
             self, "DeviceFarmProject",
-            name="qa-automation-demo",
+            name=df_project_name,
         )
         devicefarm.CfnDevicePool(
             self, "DeviceFarmPool",
-            name="android-phones",
+            name=device_pool_name,
             project_arn=df_project.attr_arn,
             description="Android phones, highly available (demo)",
             max_devices=1,

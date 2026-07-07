@@ -9,11 +9,8 @@
 자기 Browser Tool 세션을 열어 독립 실행 → 오케스트레이션 부하가 서버리스로 분산된다
 (로컬 박스에 부하 없음; c5.metal 교훈).
 
-배포:
-    AGENTCORE_SUPPRESS_RECOMMENDATION=1 agentcore configure \
-        -e agent/runtime_app.py -n wbkqaconvert -r us-west-2 -rf agent/requirements.txt \
-        -dt direct_code_deploy -rt PYTHON_3_11 -ni
-    AGENTCORE_SUPPRESS_RECOMMENDATION=1 agentcore deploy
+배포: deploy/ 의 CDK 로 이 코드를 AgentCore Runtime(direct-code-deploy)에 올린다.
+      (deploy/README.md 참고. 수동 배포는 agentcore CLI 로도 가능.)
 
 payload:
   {"action":"convert", "scenario":{...}, "target":"appium|maestro|steps|playwright|..."}

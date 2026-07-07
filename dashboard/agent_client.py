@@ -6,8 +6,8 @@
     AGENT_BACKEND=local      # 로컬 convert_scenario 직접 호출 (기본)
     AGENT_BACKEND=agentcore  # 배포된 AgentCore Runtime 을 invoke
 
-AgentCore 사용 시 ARN:
-    AGENTCORE_ARN=arn:aws:bedrock-agentcore:us-west-2:...:runtime/wbkqaconvert-...
+AgentCore 사용 시 ARN (CDK 배포 출력의 AgentRuntimeArn):
+    AGENTCORE_ARN=arn:aws:bedrock-agentcore:us-west-2:<account>:runtime/<runtimeName>-<id>
 """
 from __future__ import annotations
 

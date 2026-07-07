@@ -26,6 +26,8 @@ err.log
 # 서브디렉토리 README 는 github 에 올리지 않음 (내부 설계 노트/고객 사례 포함). 루트만 공개.
 **/README.md
 !/README.md
+# 단, deploy 배포 가이드는 공개 (민감내용 없음).
+!deploy/README.md
 
 # 다이어그램 편집 원본은 github 에 올리지 않음 (렌더된 .jpg 만 공개).
 diagrams/*.drawio
