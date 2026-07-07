@@ -32,7 +32,13 @@ _SHOT_DIR = _ROOT / "artifacts" / "dashboard_run"
 
 def _cfg():
     import json
-    return json.loads((_INFRA / "config.json").read_text())
+    cfg_path = _INFRA / "config.json"
+    if not cfg_path.is_file():
+        raise RuntimeError(
+            "모바일(Device Farm) 경로 셋업이 안 됐습니다. 먼저 실행하세요: "
+            "python infra/devicefarm_setup.py --region us-west-2 "
+            "(웹 탭만 쓸 거면 불필요)")
+    return json.loads(cfg_path.read_text())
 
 
 def start_real_run(run_name: str) -> dict:

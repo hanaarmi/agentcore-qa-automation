@@ -3,7 +3,7 @@
 프로젝트와 Device Pool을 코드로 생성한다. 이미 있으면 재사용(멱등).
 결과 ARN을 infra/config.json 에 저장 → devicefarm_run.py 가 읽는다.
 
-목적: 매번 콘솔에서 기기를 고르는 반복 작업 제거 (고객 요구).
+목적: 매번 콘솔에서 기기를 고르는 반복 작업 제거.
 
 사용:
     python infra/devicefarm_setup.py [--project NAME] [--pool NAME] [--region us-west-2]

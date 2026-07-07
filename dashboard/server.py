@@ -10,7 +10,7 @@
 설계: 이 백엔드는 발표자 노트북에서 로컬로 돈다. 무거운 추론은 에이전트(로컬 or AgentCore),
 무거운 디바이스 실행은 Device Farm 이 담당. 대시보드 자체는 가볍다.
 
-스크린샷은 "판단용"이 아니라 "표시용"(의사-라이브)이다 — LLM 실행 루프 없음(D-005/D-008).
+스크린샷은 "판단용"이 아니라 "표시용"(의사-라이브)이다 — LLM 실행 루프 없음.
 데모 편의를 위해 스크린샷은 SVG 플레이스홀더를 즉석 생성한다(실기기 연동 시 이 함수만 교체).
 """
 from __future__ import annotations
@@ -145,7 +145,7 @@ def reset():
     return {"ok": True}
 
 
-# ---- 실제 Device Farm run 조회 (시뮬레이션 아님, ISSUE-004/D-011) ----------
+# ---- 실제 Device Farm run 조회 (시뮬레이션 아님) ----------
 @app.get("/df/runs")
 def df_runs():
     """프로젝트의 실제 Device Farm run 상태/카운터."""

@@ -3,7 +3,7 @@
 시뮬레이션이 아니라 **실제 Device Farm run**의 상태와 완료 영상을 가져온다.
 - run 을 새로 스케줄하지 않고(과금/시간), 이미 존재하는 run(또는 최신 run)의 상태를 조회.
 - Device Farm 은 라이브 비디오 스트림을 표준 제공하지 않으므로: 진행 중엔 상태/카운터를,
-  완료 후엔 녹화 영상(VIDEO) 아티팩트 URL 을 제공한다. (ISSUE-004 / D-011)
+  완료 후엔 녹화 영상(VIDEO) 아티팩트 URL 을 제공한다.
 
 환경변수:
     DEVICEFARM_PROJECT_ARN   조회할 프로젝트 (없으면 config.json 사용)

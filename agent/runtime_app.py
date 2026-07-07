@@ -7,7 +7,7 @@
 
 핵심 설계: 대시보드는 이 런타임을 **N번 병렬 invoke** 한다. 각 invoke 가 자기 microVM 에서
 자기 Browser Tool 세션을 열어 독립 실행 → 오케스트레이션 부하가 서버리스로 분산된다
-(로컬 박스에 부하 없음; c5.metal 교훈).
+(로컬 박스에 부하 없음).
 
 배포: deploy/ 의 CDK 로 이 코드를 AgentCore Runtime(direct-code-deploy)에 올린다.
       (deploy/README.md 참고. 수동 배포는 agentcore CLI 로도 가능.)

@@ -2,7 +2,7 @@
 
 핵심(사용자 설계): 로컬에서 Browser Tool 을 직접 돌리지 않는다. 대신 배포된 AgentCore
 Runtime 을 N번 병렬 invoke 하고, 각 invoke 가 자기 microVM 안에서 자기 Browser Tool 세션을
-연다. 오케스트레이션 부하가 서버리스로 분산 → 로컬 박스 부하 없음(c5.metal 교훈).
+연다. 오케스트레이션 부하가 서버리스로 분산 → 로컬 박스 부하 없음.
 
 로컬 대시보드는 (1) 변형 생성 요청, (2) N개 invoke, (3) 결과 폴링만 한다.
 """

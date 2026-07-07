@@ -13,7 +13,7 @@
 주의:
 - Device Farm 업로드는 presigned S3 PUT 방식이다: create_upload 로 URL을 받아 파일을 PUT하고,
   status 가 SUCCEEDED 될 때까지 기다려야 schedule_run 에서 쓸 수 있다.
-- 이 스크립트는 blocking 폴링이지만 LLM을 호출하지 않는다(실행 루프에 LLM 없음, D-005).
+- 이 스크립트는 blocking 폴링이지만 LLM을 호출하지 않는다(실행 루프에 LLM 없음).
 """
 from __future__ import annotations
 
@@ -31,7 +31,10 @@ POLL_SECONDS = 15
 
 def load_config() -> dict:
     if not CONFIG_PATH.is_file():
-        raise SystemExit("config.json 없음 — 먼저 devicefarm_setup.py 를 실행하세요.")
+        raise SystemExit(
+            f"config.json 없음 ({CONFIG_PATH}). 모바일(Device Farm) 경로는 먼저 셋업이 필요합니다:\n"
+            "  python infra/devicefarm_setup.py --region us-west-2\n"
+            "(웹 경로만 쓸 거면 이 스크립트는 실행할 필요가 없습니다.)")
     return json.loads(CONFIG_PATH.read_text())
 
 

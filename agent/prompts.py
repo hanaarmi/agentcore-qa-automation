@@ -3,8 +3,8 @@
 scenario.json(도구중립 IR) → (a) 자연어 스텝, (b) Appium Python, (c) Maestro YAML.
 
 설계 원칙: 생성된 코드는 *실행 시점에 LLM을 호출하지 않는다*. 결정론적이고,
-resource-id 기반이며, 좌표를 쓰지 않는다. (고객 사례: 매 스텝 vision 드라이빙이
-c5.metal 병목의 원인 — docs/ISSUES.md ISSUE-002)
+resource-id 기반이며, 좌표를 쓰지 않는다. (매 스텝 vision 드라이빙은 실행
+비용/지연의 병목이 되므로 지양.)
 """
 
 # 공통 입력 설명. 모든 프롬프트가 공유.

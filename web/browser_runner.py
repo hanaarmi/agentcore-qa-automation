@@ -7,7 +7,7 @@
 모바일(Device Farm) 경로와 대칭:
   - 모바일: 실기기(관리형) ← Appium
   - 웹    : 클라우드 브라우저(관리형) ← Playwright
-무거운 실행은 관리형에 오프로드, 우리는 오케스트레이션만(D-005/부하 회피).
+무거운 실행은 관리형에 오프로드, 우리는 오케스트레이션만(로컬 부하 회피).
 
 사용:
     python web/browser_runner.py web/out/todomvc_playwright.py [--shots web/out/shots]

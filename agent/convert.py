@@ -3,7 +3,7 @@
 scenario.json → 자연어 스텝 / Appium Python / Maestro YAML.
 
 Strands Agent + Bedrock Claude Opus 4.8 를 "생성" 단계에만 사용한다.
-실행 루프에는 LLM이 없다(설계 원칙: docs/ISSUES.md ISSUE-002 / D-005).
+실행 루프에는 LLM이 없다(설계 원칙: 생성은 LLM, 실행은 결정론적 코드).
 
 사용법:
     python agent/convert.py <scenario.json> --target {appium|maestro|steps} [--out FILE]
