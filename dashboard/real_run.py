@@ -1,10 +1,12 @@
-"""대시보드용 실제 Device Farm 실행 오케스트레이션 (시뮬레이션 아님).
+"""Real Device Farm run orchestration for the dashboard (not a simulation).
 
-'실행 시작' → 실제로: Appium 테스트 패키징 → 업로드 → schedule_run → 상태 폴링 →
-완료 후 스크린샷 + 영상 아티팩트 수집. 진행 상태를 인메모리로 추적해 대시보드가 폴링.
+'Start run' actually performs: package the Appium test -> upload -> schedule_run ->
+poll status -> after completion, collect screenshots + video artifacts. Progress is
+tracked in memory for the dashboard to poll.
 
-Device Farm 은 실행 '중' 스크린샷을 실시간 제공하지 않는다 → 진행 중엔 run 상태만,
-완료 후 수집된 스텝별 스크린샷을 타일(필름스트립)로, 영상은 버튼으로.
+Device Farm does not provide screenshots in real time during a run, so: during a run
+only the run status is shown; after completion the collected per-step screenshots are
+shown as tiles (a filmstrip), with the video behind a button.
 """
 from __future__ import annotations
 
@@ -22,35 +24,36 @@ for _p in (_INFRA, _AGENT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-# infra 의 검증된 실행 함수 + 설정 리졸버 재사용.
+# Reuse the proven run helpers and config resolver from infra.
 import devicefarm_run as dfr  # noqa: E402
 from df_config import resolve_config  # noqa: E402
 
 _state: dict = {"active": None}
 _lock = threading.Lock()
 
-# 완료 후 수집한 스크린샷을 대시보드가 서빙할 수 있도록 저장.
+# Store screenshots collected after completion so the dashboard can serve them.
 _SHOT_DIR = _ROOT / "artifacts" / "dashboard_run"
 
 
 def _cfg():
-    # config.json → env → CDK 가 만든 프로젝트/풀 이름 조회 순으로 자동 구성.
+    # Auto-configure in order: config.json -> env -> lookup of the CDK-created project/pool names.
     return resolve_config()
 
 
-# 모바일 테스트 패키지(zip). 리포엔 시나리오 JSON 샘플만 있고 zip 은 산출물이라 없다 →
-# 없으면 샘플 시나리오를 Appium 으로 변환해 그 자리에서 만든다(수동 단계 제거).
+# Mobile test package (zip). The repo only ships a sample scenario JSON; the zip is a
+# build artifact and is not committed. If missing, convert the sample scenario to Appium
+# and build it on the fly (removes a manual step).
 _PKG_PATH = _ROOT / "out" / "appium_pkg.zip"
 _SAMPLE_SCENARIO = _ROOT / "samples" / "happy_path_order.json"
 
 
 def _ensure_pkg() -> Path:
-    """out/appium_pkg.zip 이 없으면 샘플 시나리오 → Appium 변환 → 패키징으로 생성."""
+    """If out/appium_pkg.zip is missing, build it: sample scenario -> Appium conversion -> package."""
     if _PKG_PATH.is_file():
         return _PKG_PATH
 
     import json
-    from convert import convert_scenario  # agent/convert.py (로컬 변환)
+    from convert import convert_scenario  # agent/convert.py (local conversion)
     from package_appium import build      # infra/package_appium.py
 
     scenario = json.loads(_SAMPLE_SCENARIO.read_text())
@@ -64,7 +67,7 @@ def _ensure_pkg() -> Path:
 
 
 def start_real_run(run_name: str) -> dict:
-    """실제 run 을 백그라운드로 시작. 이미 활성 run 이 있으면 그걸 반환."""
+    """Start a real run in the background. If a run is already active, return it."""
     with _lock:
         if _state["active"] and _state["active"]["status"] in ("STARTING", "RUNNING"):
             return _public()
@@ -96,7 +99,7 @@ def _drive_real(run_name: str) -> None:
         apk = _ROOT / "assets" / "deliveryapp-debug.apk"
         spec = _INFRA / "testspec_appium_python.yml"
 
-        # 테스트 패키지가 없으면 샘플 시나리오로 즉석 생성(수동 패키징 단계 제거).
+        # If the test package is missing, build it on the fly from the sample scenario (removes the manual packaging step).
         _set(phase="packaging tests", status="RUNNING")
         pkg = _ensure_pkg()
 
@@ -116,10 +119,10 @@ def _drive_real(run_name: str) -> None:
             client, cfg["projectArn"], cfg["devicePoolArn"],
             app_arn, test_arn, "APPIUM_PYTHON", run_name, spec_arn,
         )
-        # schedule_and_wait_run 은 COMPLETED 까지 블로킹 → 여기 오면 완료.
+        # schedule_and_wait_run blocks until COMPLETED, so reaching here means it is done.
         _set(phase="collecting", runArn=run["arn"], result=run.get("result"))
 
-        # 스크린샷 + 영상 수집.
+        # Collect screenshots + video.
         _SHOT_DIR.mkdir(parents=True, exist_ok=True)
         shots = _collect_screenshots(client, run["arn"])
         has_video = bool(_video_urls(client, run["arn"]))
@@ -130,7 +133,7 @@ def _drive_real(run_name: str) -> None:
 
 
 def _collect_screenshots(client, run_arn: str) -> list[str]:
-    """run 의 스크린샷(우리 테스트가 남긴 step_*.png 포함) 다운로드. 파일명 리스트 반환."""
+    """Download the run's screenshots (including the step_*.png files left by the test). Returns the list of file names."""
     import requests
     names = []
     for atype in ("SCREENSHOT", "FILE"):

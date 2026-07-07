@@ -1,11 +1,11 @@
-"""Device Farm 1회 셋업 (IaC, 멱등).
+"""Device Farm one-time setup (IaC, idempotent).
 
-프로젝트와 Device Pool을 코드로 생성한다. 이미 있으면 재사용(멱등).
-결과 ARN을 infra/config.json 에 저장 → devicefarm_run.py 가 읽는다.
+Creates the project and Device Pool in code. Reuses them if they already exist (idempotent).
+Saves the resulting ARNs to infra/config.json, which devicefarm_run.py reads.
 
-목적: 매번 콘솔에서 기기를 고르는 반복 작업 제거.
+Purpose: eliminate the repetitive task of picking devices in the console every time.
 
-사용:
+Usage:
     python infra/devicefarm_setup.py [--project NAME] [--pool NAME] [--region us-west-2]
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import boto3
 
-# Device Farm 컨트롤 플레인은 us-west-2 전용.
+# The Device Farm control plane is us-west-2 only.
 DEFAULT_REGION = "us-west-2"
 CONFIG_PATH = Path(__file__).with_name("config.json")
 
@@ -50,13 +50,13 @@ def _find_pool(client, project_arn: str, name: str) -> str | None:
 
 
 def ensure_device_pool(client, project_arn: str, name: str) -> str:
-    """Android 실기기로 고정된 Device Pool. 기기 선택을 규칙으로 코드화."""
+    """Device Pool pinned to physical Android devices. Encodes device selection as rules."""
     arn = _find_pool(client, project_arn, name)
     if arn:
         print(f"[pool] reuse: {name}")
         return arn
 
-    # 규칙 기반: 물리 Android 기기 중 가용한 것. 최대 1대(데모 단순화; 병렬은 run 여러 개로).
+    # Rule-based: available physical Android devices. Max 1 device (demo simplification; use multiple runs for parallelism).
     rules = [
         {"attribute": "PLATFORM", "operator": "EQUALS", "value": '"ANDROID"'},
         {"attribute": "FORM_FACTOR", "operator": "EQUALS", "value": '"PHONE"'},

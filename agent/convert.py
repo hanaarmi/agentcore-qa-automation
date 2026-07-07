@@ -1,11 +1,12 @@
-"""변환 에이전트 진입점.
+"""Conversion agent entry point.
 
-scenario.json → 자연어 스텝 / Appium Python / Maestro YAML.
+scenario.json -> natural-language steps / Appium Python / Maestro YAML.
 
-Strands Agent + Bedrock Claude Opus 4.8 를 "생성" 단계에만 사용한다.
-실행 루프에는 LLM이 없다(설계 원칙: 생성은 LLM, 실행은 결정론적 코드).
+The Strands Agent + Bedrock Claude Opus 4.8 is used only for the "generation"
+stage. The execution loop has no LLM (design principle: generation uses the LLM,
+execution uses deterministic code).
 
-사용법:
+Usage:
     python agent/convert.py <scenario.json> --target {appium|maestro|steps} [--out FILE]
 """
 from __future__ import annotations
@@ -21,50 +22,51 @@ from strands.models import BedrockModel
 
 from prompts import SYSTEM_BY_TARGET
 
-# 모델은 배포 시 CDK context(-c modelId=...)로 Runtime 환경변수 QA_MODEL_ID 에 주입된다.
-# 미설정 시 기본값(Opus 4.8 inference profile). 로컬 실행 시 export QA_MODEL_ID 로 변경 가능.
+# The model is injected into the Runtime env var QA_MODEL_ID via CDK context
+# (-c modelId=...) at deploy time. If unset, it defaults to the Opus 4.8 inference
+# profile. For local runs, override with export QA_MODEL_ID.
 MODEL_ID = os.environ.get("QA_MODEL_ID", "us.anthropic.claude-opus-4-8")
 REGION = os.environ.get("AWS_REGION", "us-west-2")
 
-# target -> 기본 출력 확장자
+# target -> default output file extension
 EXT = {"appium": "py", "maestro": "yaml", "steps": "txt"}
 
 
 def build_agent(target: str) -> Agent:
     system_prompt = SYSTEM_BY_TARGET[target]
-    # 주의: Opus 4.8 은 temperature 파라미터를 더 이상 받지 않는다(deprecated) →
-    # 전달하면 Bedrock ValidationException. 기본값에 맡긴다.
+    # Note: Opus 4.8 no longer accepts the temperature parameter (deprecated);
+    # passing it raises a Bedrock ValidationException. Rely on the default.
     model = BedrockModel(
         model_id=MODEL_ID,
         region_name=REGION,
     )
-    # callback_handler=None: 기본 핸들러가 스트리밍 토큰을 stdout 에 찍어 출력이
-    # 중복되는 것을 막는다. 우리는 최종 텍스트만 한 번 출력한다.
+    # callback_handler=None: prevents the default handler from printing streaming
+    # tokens to stdout, which would duplicate output. We emit the final text once.
     return Agent(model=model, system_prompt=system_prompt, callback_handler=None)
 
 
 def convert_scenario(scenario: dict, target: str) -> str:
-    """scenario 딕셔너리 → 대상 산출물 텍스트. CLI와 AgentCore 런타임이 공유하는 코어."""
+    """Scenario dict -> target artifact text. Core shared by the CLI and the AgentCore runtime."""
     agent = build_agent(target)
     prompt = (
         "Convert the following scenario JSON.\n\n"
         f"```json\n{json.dumps(scenario, ensure_ascii=False, indent=2)}\n```"
     )
     result = agent(prompt)
-    # Strands Agent 호출 결과에서 텍스트를 안전하게 추출.
+    # Safely extract the text from the Strands Agent call result.
     return _extract_text(result)
 
 
 def convert(scenario_path: Path, target: str) -> str:
-    """파일 경로 버전(CLI용). 코어는 convert_scenario 가 담당."""
+    """File-path variant (for the CLI). The core work is handled by convert_scenario."""
     scenario = json.loads(scenario_path.read_text())
     return convert_scenario(scenario, target)
 
 
 def _extract_text(result) -> str:
-    """Strands AgentResult / message 구조에서 최종 텍스트만 뽑는다."""
-    # AgentResult 는 str() 시 최종 응답 텍스트를 주도록 구현돼 있으나,
-    # 버전차를 고려해 message 구조도 직접 처리.
+    """Extract only the final text from a Strands AgentResult / message structure."""
+    # AgentResult is implemented to return the final response text via str(), but
+    # we also handle the message structure directly to tolerate version differences.
     msg = getattr(result, "message", None)
     if isinstance(msg, dict):
         parts = msg.get("content", [])

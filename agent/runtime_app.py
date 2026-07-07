@@ -1,16 +1,18 @@
-"""AgentCore Runtime 엔트리포인트 (변환 + 웹 실행).
+"""AgentCore Runtime entry point (conversion + web execution).
 
-두 가지 action:
-  - "convert"  : scenario/recording → 코드/스텝 생성 (convert_scenario 재사용)
-  - "run_web"  : Playwright 스크립트를 이 런타임 안에서 AgentCore Browser Tool 세션으로
-                 실행하고 결과 + 스텝별 스크린샷(base64)을 반환
+Two actions:
+  - "convert"  : scenario/recording -> code/step generation (reuses convert_scenario)
+  - "run_web"  : run a Playwright script inside this runtime against an AgentCore
+                 Browser Tool session and return the result + per-step screenshots
+                 (base64)
 
-핵심 설계: 대시보드는 이 런타임을 **N번 병렬 invoke** 한다. 각 invoke 가 자기 microVM 에서
-자기 Browser Tool 세션을 열어 독립 실행 → 오케스트레이션 부하가 서버리스로 분산된다
-(로컬 박스에 부하 없음).
+Core design: the dashboard invokes this runtime N times in parallel. Each invoke
+opens its own Browser Tool session in its own microVM and runs independently, so
+the orchestration load is spread across serverless (no load on the local box).
 
-배포: deploy/ 의 CDK 로 이 코드를 AgentCore Runtime(direct-code-deploy)에 올린다.
-      (deploy/README.md 참고. 수동 배포는 agentcore CLI 로도 가능.)
+Deployment: the CDK in deploy/ pushes this code to the AgentCore Runtime
+            (direct-code-deploy). See deploy/README.md. Manual deployment is also
+            possible via the agentcore CLI.
 
 payload:
   {"action":"convert", "scenario":{...}, "target":"appium|maestro|steps|playwright|..."}
@@ -39,7 +41,7 @@ def _clean(code: str) -> str:
 
 
 def _run_web(script: str, label: str) -> dict:
-    """Playwright 스크립트를 이 런타임 안의 Browser Tool 세션에서 실행."""
+    """Run a Playwright script in a Browser Tool session inside this runtime."""
     import asyncio
     from bedrock_agentcore.tools.browser_client import browser_session
     from playwright.async_api import async_playwright
@@ -48,12 +50,12 @@ def _run_web(script: str, label: str) -> dict:
     shot_dir = "/tmp/webshots"
     os.makedirs(shot_dir, exist_ok=True)
     os.environ["WEB_SHOT_DIR"] = shot_dir
-    # 기존 스크린샷 정리
+    # Clear out any existing screenshots
     for f in os.listdir(shot_dir):
         if f.endswith(".png"):
             os.remove(os.path.join(shot_dir, f))
 
-    # 스크립트에서 async def run(page) 로드
+    # Load async def run(page) from the script
     ns: dict = {}
     exec(compile(_clean(script), "<script>", "exec"), ns)  # noqa: S102
     run_fn = ns.get("run")
@@ -80,7 +82,7 @@ def _run_web(script: str, label: str) -> dict:
 
     result = asyncio.run(drive())
 
-    # 스크린샷을 base64 로 반환(스텝 순서).
+    # Return the screenshots as base64 (in step order).
     shots = []
     for name in sorted(os.listdir(shot_dir)):
         if name.endswith(".png"):
@@ -91,12 +93,13 @@ def _run_web(script: str, label: str) -> dict:
 
 
 def _scenario_run(brief: str, base_code: str, label: str) -> dict:
-    """브리프(한 문장) → runtime 안에서 LLM 으로 Playwright 스크립트 생성 → Browser Tool 실행.
+    """Brief (one sentence) -> generate a Playwright script with the LLM inside the runtime -> run via Browser Tool.
 
-    이렇게 하면 스크립트 생성(LLM)도 각 runtime 에 분산된다(로컬에서 안 돌림).
+    This way script generation (the LLM) is also distributed across each runtime
+    (not run locally).
     """
     from convert import convert_scenario
-    # brief + base_code 를 넣어 playwright_from_brief 타깃으로 스크립트 생성.
+    # Feed brief + base_code to generate a script with the playwright_from_brief target.
     gen_input = {"brief": brief, "base_script": base_code}
     script = convert_scenario(gen_input, "playwright_from_brief")
     out = _run_web(script, label)
@@ -121,7 +124,7 @@ def handler(payload, context=None):
             return {"error": "scenario_run requires 'brief'"}
         return _scenario_run(brief, base_code, payload.get("label", "web"))
 
-    # 기본: 변환
+    # Default: conversion
     scenario = payload.get("scenario")
     target = payload.get("target", "appium")
     if scenario is None:

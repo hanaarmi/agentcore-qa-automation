@@ -1,15 +1,16 @@
-"""AgentCore Browser Tool 러너.
+"""AgentCore Browser Tool runner.
 
-생성된 Playwright 스크립트(web/out/*.py 의 async def run(page))를 AWS 관리형
-클라우드 브라우저(AgentCore Browser Tool)에서 실행한다. Chromium 을 로컬에 안 띄운다 —
-관리형 브라우저에 CDP(WebSocket)로 붙는다.
+Runs a generated Playwright script (the async def run(page) in web/out/*.py) on
+the AWS managed cloud browser (AgentCore Browser Tool). It does not launch a local
+Chromium; it connects to the managed browser over CDP (WebSocket).
 
-모바일(Device Farm) 경로와 대칭:
-  - 모바일: 실기기(관리형) ← Appium
-  - 웹    : 클라우드 브라우저(관리형) ← Playwright
-무거운 실행은 관리형에 오프로드, 우리는 오케스트레이션만(로컬 부하 회피).
+Symmetric with the mobile (Device Farm) path:
+  - mobile: real device (managed)   <- Appium
+  - web   : cloud browser (managed) <- Playwright
+Heavy execution is offloaded to the managed service; we only orchestrate (avoiding
+local load).
 
-사용:
+Usage:
     python web/browser_runner.py web/out/todomvc_playwright.py [--shots web/out/shots]
 """
 from __future__ import annotations
@@ -24,20 +25,21 @@ REGION = os.environ.get("AGENTCORE_REGION", "us-west-2")
 
 
 def _load_run_fn(script_path: Path):
-    """생성된 스크립트에서 async def run(page) 를 로드."""
+    """Load async def run(page) from the generated script."""
     spec = importlib.util.spec_from_file_location("gen_pw_test", script_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     if not hasattr(mod, "run"):
-        raise SystemExit(f"{script_path} 에 async def run(page) 가 없습니다.")
+        raise SystemExit(f"{script_path} does not define async def run(page).")
     return mod.run
 
 
 async def _frame_grabber(page, live_path: Path, stop: "asyncio.Event") -> None:
-    """실행 중 ~1초마다 현재 화면을 live.png 로 덮어써 준실시간 프리뷰를 만든다.
+    """Overwrite live.png with the current screen roughly every second to provide a near-real-time preview.
 
-    AgentCore 라이브 뷰는 DCV 스트림이라 iframe 으로 못 띄운다(501). DCV Web SDK 없이
-    순수 HTML 대시보드에서 '지켜보기'를 구현하는 가장 견고한 방법 = 스크린샷 폴링.
+    The AgentCore live view is a DCV stream and cannot be embedded in an iframe
+    (501). Without the DCV Web SDK, screenshot polling is the most robust way to
+    implement a "watch" view in a plain HTML dashboard.
     """
     while not stop.is_set():
         try:
@@ -68,7 +70,7 @@ async def _drive(script_path: Path, shot_dir: Path, live_path: Path | None = Non
             try:
                 context = browser.contexts[0] if browser.contexts else await browser.new_context()
                 page = context.pages[0] if context.pages else await context.new_page()
-                # 준실시간 프리뷰용 프레임 그래버 시작.
+                # Start the frame grabber for the near-real-time preview.
                 if live_path is not None:
                     live_path.parent.mkdir(parents=True, exist_ok=True)
                     grab_task = asyncio.create_task(_frame_grabber(page, live_path, stop))
@@ -96,7 +98,7 @@ def run_script(script_path: Path, shot_dir: Path, live_path: Path | None = None)
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("script", type=Path, help="생성된 Playwright 스크립트")
+    ap.add_argument("script", type=Path, help="generated Playwright script")
     ap.add_argument("--shots", type=Path, default=Path("web/out/shots"))
     args = ap.parse_args()
     if not args.script.is_file():

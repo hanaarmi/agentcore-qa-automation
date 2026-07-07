@@ -1,10 +1,11 @@
-"""Variation 생성기.
+"""Variation generator.
 
-한 번 돌려서 나온 base Playwright 스크립트 + 스크린샷을 LLM(Opus, 멀티모달)에 던져
-의미 있는 변형 N개를 생성한다. 각 변형은 같은 페이지/셀렉터 전략을 유지하되 데이터·흐름을
-바꾼다(다른 입력값, 항목 수, 엣지케이스 등).
+Feeds the base Playwright script and screenshot from an initial run to the LLM
+(Opus, multimodal) to generate N meaningful variations. Each variation keeps the
+same page/selector strategy but changes the data and flow (different input values,
+item counts, edge cases, etc.).
 
-사용:
+Usage:
     from web.variations import make_variations
     scripts = make_variations(base_code, screenshot_bytes, n=20)
 """
@@ -23,11 +24,12 @@ from strands.models import BedrockModel  # noqa: E402
 from prompts import PLAYWRIGHT_VARIATION_SYSTEM, SCENARIO_BRAINSTORM_SYSTEM  # noqa: E402
 from convert import _extract_text  # noqa: E402
 
-# 모델은 env(QA_MODEL_ID)로 재정의 가능. 미설정 시 Opus 4.8. (배포 시 CDK context 로 주입)
+# The model can be overridden via env (QA_MODEL_ID); defaults to Opus 4.8 if unset
+# (injected via CDK context at deploy time).
 MODEL_ID = os.environ.get("QA_MODEL_ID", "us.anthropic.claude-opus-4-8")
 REGION = os.environ.get("AWS_REGION", "us-west-2")
 
-# 브레인스토밍 실패 시 최소한의 폴백 브리프.
+# Minimal fallback briefs used if brainstorming fails.
 _FALLBACK = [
     "Add two todos with ordinary text, then complete the first.",
     "Add a todo with a very long (60+ char) title, then complete it.",
@@ -43,10 +45,12 @@ def _agent(system: str = PLAYWRIGHT_VARIATION_SYSTEM) -> Agent:
 
 
 def brainstorm_scenarios(base_code: str, screenshot: bytes | None, n: int) -> list[dict]:
-    """스크린샷을 보고 서로 다른 테스트 시나리오 N개를 LLM이 예상(1회, 로컬).
+    """Have the LLM propose N distinct test scenarios from the screenshot (one call, local).
 
-    반환: [{"title": 한국어 제목, "desc": 한국어 설명, "brief": 영어 코드생성용 지시}, ...]
-    스크립트 생성/실행은 각 runtime 이 brief 를 받아 수행한다(로컬에서 안 함).
+    Returns: [{"title": short title, "desc": description, "brief": instruction
+    for code generation}, ...]
+    Script generation/execution is performed by each runtime given the brief (not
+    done locally).
     """
     import json
     agent = _agent(SCENARIO_BRAINSTORM_SYSTEM)
@@ -62,14 +66,14 @@ def brainstorm_scenarios(base_code: str, screenshot: bytes | None, n: int) -> li
         out = []
         for x in items:
             if isinstance(x, dict) and x.get("brief"):
-                out.append({"title": str(x.get("title", "")).strip() or "시나리오",
+                out.append({"title": str(x.get("title", "")).strip() or "Scenario",
                             "desc": str(x.get("desc", "")).strip(),
                             "brief": str(x["brief"]).strip()})
     except Exception:  # noqa: BLE001
         out = []
-    # 개수 보정(폴백).
+    # Pad to the requested count (fallback).
     while len(out) < n:
         i = len(out)
-        out.append({"title": f"기본 시나리오 {i + 1}", "desc": _FALLBACK[i % len(_FALLBACK)],
+        out.append({"title": f"Scenario {i + 1}", "desc": _FALLBACK[i % len(_FALLBACK)],
                     "brief": _FALLBACK[i % len(_FALLBACK)]})
     return out[:n]

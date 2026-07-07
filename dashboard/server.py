@@ -1,17 +1,19 @@
-"""데모 대시보드 백엔드 (로컬 FastAPI).
+"""Demo dashboard backend (local FastAPI).
 
-역할:
-- 정적 UI(index.html) 서빙
-- POST /convert  : 드롭된 scenario.json → 자연어 스텝 + Appium + Maestro 생성
-- POST /run      : 시나리오로 병렬 "잡" N개 시작 (각 잡이 스텝을 순차 진행)
-- GET  /jobs     : 모든 잡의 현재 상태(진행 스텝 + 스크린샷 URL) 폴링 → 타일 갱신
-- GET  /shot/... : 스텝별 스크린샷(의사-라이브) 제공
+Responsibilities:
+- Serve the static UI (index.html)
+- POST /convert  : dropped scenario.json -> generate natural-language steps + Appium + Maestro
+- POST /run      : start N parallel "jobs" from a scenario (each job advances through steps sequentially)
+- GET  /jobs     : poll the current state of all jobs (current step + screenshot URL) -> refresh tiles
+- GET  /shot/... : serve per-step screenshots (pseudo-live)
 
-설계: 이 백엔드는 발표자 노트북에서 로컬로 돈다. 무거운 추론은 에이전트(로컬 or AgentCore),
-무거운 디바이스 실행은 Device Farm 이 담당. 대시보드 자체는 가볍다.
+Design: this backend runs locally on the presenter's laptop. Heavy inference is handled
+by the agent (local or AgentCore), and heavy device execution by Device Farm. The
+dashboard itself is lightweight.
 
-스크린샷은 "판단용"이 아니라 "표시용"(의사-라이브)이다 — LLM 실행 루프 없음.
-데모 편의를 위해 스크린샷은 SVG 플레이스홀더를 즉석 생성한다(실기기 연동 시 이 함수만 교체).
+Screenshots are for "display" (pseudo-live), not for "decision-making" -- there is no
+LLM execution loop. For demo convenience, screenshots are generated on the fly as SVG
+placeholders (to integrate a real device, replace only this function).
 """
 from __future__ import annotations
 
@@ -25,8 +27,8 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
-# 어디서 실행하든(루트든 dashboard/ 안이든) sibling 모듈을 import 할 수 있도록
-# 이 파일의 디렉토리를 경로에 추가.
+# Add this file's directory to the path so sibling modules can be imported regardless of
+# where the process is launched (repo root or inside dashboard/).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from agent_client import convert  # noqa: E402
@@ -35,7 +37,7 @@ app = FastAPI(title="QA Automation Demo Dashboard")
 
 _HERE = Path(__file__).resolve().parent
 
-# ---- 인메모리 잡 상태 (데모용) ---------------------------------------------
+# ---- In-memory job state (for the demo) ------------------------------------
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
 
@@ -58,14 +60,14 @@ def index() -> str:
 
 @app.get("/backend")
 def backend():
-    """UI 표시용: 지금 로컬 에이전트인지 AgentCore 인지."""
+    """For UI display: whether the current backend is the local agent or AgentCore."""
     import os
     return {"backend": os.environ.get("AGENT_BACKEND", "local")}
 
 
 @app.get("/sample")
 def sample():
-    """샘플 scenario.json 반환 (드롭 없이 데모 시작용)."""
+    """Return the sample scenario.json (to start the demo without dropping a file)."""
     import json
     p = _HERE.parent / "samples" / "happy_path_order.json"
     return JSONResponse(json.loads(p.read_text()))
@@ -73,14 +75,14 @@ def sample():
 
 @app.post("/convert")
 def do_convert(req: ConvertReq):
-    """단일 타깃 변환. UI가 steps/appium/maestro 각각 호출."""
+    """Single-target conversion. The UI calls this separately for steps/appium/maestro."""
     output = convert(req.scenario, req.target)
     return {"target": req.target, "output": output}
 
 
 @app.post("/run")
 def do_run(req: RunReq):
-    """병렬 잡 시작. 각 잡은 독립 스레드에서 스텝을 순차 진행(디바이스 실행 시뮬레이션)."""
+    """Start parallel jobs. Each job advances through steps sequentially on its own thread (simulating device execution)."""
     job_ids = []
     for i in range(max(1, req.parallel)):
         jid = uuid.uuid4().hex[:8]
@@ -100,15 +102,16 @@ def do_run(req: RunReq):
 
 
 def _drive_job(jid: str) -> None:
-    """잡 하나를 스텝별로 진행. 실제 디바이스 대신 시간차로 진행을 시뮬레이션.
+    """Advance a single job step by step. Simulates progress with time delays instead of a real device.
 
-    실기기 연동 시: 각 스텝 후 Device Farm/Appium 에서 실제 스크린샷을 받아 저장하도록
-    이 루프만 교체하면 된다. 진행 모델(스텝 인덱스 + 상태)은 동일.
+    To integrate a real device: replace only this loop so that after each step it fetches
+    and stores a real screenshot from Device Farm/Appium. The progress model (step index +
+    status) stays the same.
     """
     with _lock:
         steps = list(_jobs[jid]["steps"])
     for idx in range(len(steps)):
-        time.sleep(1.2)  # 스텝 실행 시간 시뮬레이션
+        time.sleep(1.2)  # simulate step execution time
         with _lock:
             _jobs[jid]["current"] = idx + 1
     with _lock:
@@ -125,7 +128,7 @@ def get_jobs():
 def _public_job(j: dict) -> dict:
     total = len(j["steps"])
     cur = j["current"]
-    step_text = j["steps"][cur - 1] if 0 < cur <= total else ("대기 중" if cur == 0 else "완료")
+    step_text = j["steps"][cur - 1] if 0 < cur <= total else ("Waiting" if cur == 0 else "Done")
     return {
         "id": j["id"],
         "device": j["device"],
@@ -145,24 +148,24 @@ def reset():
     return {"ok": True}
 
 
-# ---- 실제 Device Farm run 조회 (시뮬레이션 아님) ----------
+# ---- Query real Device Farm runs (not a simulation) ----------
 @app.get("/df/runs")
 def df_runs():
-    """프로젝트의 실제 Device Farm run 상태/카운터."""
+    """Real Device Farm run status/counters for the project."""
     try:
         from devicefarm_live import list_runs
         return {"runs": list_runs()}
-    except Exception as e:  # 자격증명/설정 없을 때도 UI가 죽지 않게
+    except Exception as e:  # keep the UI alive even when credentials/config are missing
         return JSONResponse({"error": str(e), "runs": []}, status_code=200)
 
 
 @app.get("/df/video")
 def df_video(arn: str):
-    """완료된 run 에 영상이 있는지 여부만 반환(개수). 실제 재생은 /df/video_stream 으로.
+    """Return only whether a completed run has a video (count). Actual playback goes through /df/video_stream.
 
-    주의: Device Farm 이 주는 S3 presigned URL 을 브라우저에 직접 물리면
-    만료/서명 문제로 403 이 나며 '재생되다 닫힘' 증상이 발생한다(관측됨).
-    그래서 백엔드가 프록시로 스트리밍한다.
+    Note: pointing the browser directly at the S3 presigned URL from Device Farm causes
+    403s due to expiry/signature issues, producing a "plays then closes" symptom. The
+    backend therefore proxies the stream instead.
     """
     try:
         from devicefarm_live import run_video_urls
@@ -174,10 +177,10 @@ def df_video(arn: str):
 
 @app.get("/df/video_stream")
 def df_video_stream(arn: str, i: int = 0):
-    """Device Farm 녹화 영상을 백엔드가 받아서 그대로 브라우저에 스트리밍(프록시).
+    """The backend fetches the Device Farm recording and streams it straight to the browser (proxy).
 
-    presigned S3 URL 을 브라우저에 직접 노출하지 않으므로 서명 만료/CORS/리다이렉트
-    문제가 없다. 브라우저는 localhost 에서 안정적으로 받는다.
+    Because the presigned S3 URL is never exposed to the browser directly, there are no
+    signature-expiry/CORS/redirect issues. The browser receives it reliably from localhost.
     """
     import requests
     from devicefarm_live import run_video_urls
@@ -194,28 +197,28 @@ def df_video_stream(arn: str, i: int = 0):
     )
 
 
-# ---- 실제 실행 (섹션 4: 시뮬레이션 아님) --------------------------------------
+# ---- Real execution (section 4: not a simulation) --------------------------------------
 class RealRunReq(BaseModel):
     run_name: str = "dashboard-real-run"
 
 
 @app.post("/real/start")
 def real_start(req: RealRunReq):
-    """실제 Device Farm run 을 백그라운드로 시작(패키징→업로드→실행→수집)."""
+    """Start a real Device Farm run in the background (package -> upload -> run -> collect)."""
     from real_run import start_real_run
     return start_real_run(req.run_name)
 
 
 @app.get("/real/status")
 def real_status():
-    """진행 중 실제 run 의 상태 + 완료 시 수집된 스크린샷 파일명."""
+    """Status of the in-progress real run + collected screenshot file names once complete."""
     from real_run import status
     return status()
 
 
 @app.get("/real/shot/{name}")
 def real_shot(name: str):
-    """수집된 실제 스크린샷 PNG 서빙."""
+    """Serve a collected real screenshot PNG."""
     from real_run import shot_path
     p = shot_path(name)
     if not p:
@@ -223,14 +226,14 @@ def real_shot(name: str):
     return Response(content=p.read_bytes(), media_type="image/png")
 
 
-# ---- 웹(Playwright + Browser Tool) 실행: 대시보드 Web 탭 ----------------------
+# ---- Web (Playwright + Browser Tool) execution: dashboard Web tab ----------------------
 class WebRunReq(BaseModel):
     recording: dict  # Chrome Recorder JSON
 
 
 @app.get("/web/sample")
 def web_sample():
-    """샘플 Chrome Recorder JSON (TodoMVC)."""
+    """Sample Chrome Recorder JSON (TodoMVC)."""
     import json
     p = _HERE.parent / "web" / "samples" / "todomvc_recording.json"
     return JSONResponse(json.loads(p.read_text()))
@@ -238,17 +241,18 @@ def web_sample():
 
 @app.post("/web/start")
 def web_start(req: WebRunReq):
-    """Chrome Recorder JSON → Playwright 생성 → Browser Tool 실행(백그라운드)."""
+    """Chrome Recorder JSON -> generate Playwright -> run on Browser Tool (background)."""
     from web_run import start_web_run
     return start_web_run(req.recording)
 
 
 @app.post("/web/convert")
 def web_convert(req: WebRunReq):
-    """Recorder JSON → Playwright 코드만 생성(미리보기용).
+    """Recorder JSON -> generate Playwright code only (for preview).
 
-    주의: 배포된 AgentCore 런타임(runtime_app)은 playwright 타깃을 모르는 구버전일 수
-    있으므로, 웹 변환은 항상 로컬 convert_scenario 를 직접 쓴다(web_run 과 동일 경로).
+    Note: the deployed AgentCore runtime (runtime_app) may be an older version that does
+    not know the playwright target, so web conversion always uses local convert_scenario
+    directly (same path as web_run).
     """
     import sys as _sys
     from pathlib import Path as _P
@@ -261,7 +265,7 @@ def web_convert(req: WebRunReq):
 
 @app.post("/web/steps")
 def web_steps(req: WebRunReq):
-    """Recorder JSON → 자연어 스텝(로컬 변환, playwright 경로와 동일 이유로 로컬 고정)."""
+    """Recorder JSON -> natural-language steps (local conversion; pinned to local for the same reason as the playwright path)."""
     import sys as _sys
     from pathlib import Path as _P
     _agent = str(_P(__file__).resolve().parent.parent / "agent")
@@ -292,17 +296,17 @@ class ParallelReq(BaseModel):
 
 @app.post("/web/parallel/start")
 def web_parallel_start(req: ParallelReq):
-    """직전 단일 web 실행의 결과(생성 스크립트 + 스크린샷)를 base 로, 변형 N개 병렬 실행."""
+    """Using the previous single web run's result (generated script + screenshots) as the base, run N variations in parallel."""
     from web_run import _GEN, _SHOTS
     import parallel_web
     if not _GEN.is_file():
-        return JSONResponse({"error": "먼저 Web 단일 실행을 한 번 하세요(base 스크립트 필요)."}, status_code=200)
+        return JSONResponse({"error": "Run a single Web execution first (a base script is required)."}, status_code=200)
     base_code = _GEN.read_text()
-    # 참고 스크린샷 하나(있으면).
+    # One reference screenshot (if any).
     shot = None
     shots = sorted(_SHOTS.glob("step_*.png"))
     if shots:
-        shot = shots[min(1, len(shots) - 1)].read_bytes()  # navigate 즈음
+        shot = shots[min(1, len(shots) - 1)].read_bytes()  # around the navigate step
     return parallel_web.start(base_code, shot, max(1, min(req.n, 30)))
 
 
@@ -333,7 +337,7 @@ def web_parallel_live(job: int):
 
 @app.get("/web/live")
 def web_live():
-    """준실시간 프리뷰 프레임(실행 중 ~1초마다 갱신). no-store 로 캐시 방지."""
+    """Near-real-time preview frame (refreshed roughly every second during a run). no-store prevents caching."""
     from web_run import live_frame
     p = live_frame()
     if not p:
@@ -344,9 +348,10 @@ def web_live():
 
 @app.get("/shot/{jid}/{step}")
 def shot(jid: str, step: int) -> Response:
-    """스텝별 스크린샷(의사-라이브). 데모용 SVG 플레이스홀더를 즉석 생성.
+    """Per-step screenshot (pseudo-live). Generates a demo SVG placeholder on the fly.
 
-    실기기 연동 시 이 함수만 교체: Device Farm/Appium 스크린샷 PNG 를 반환.
+    To integrate a real device, replace only this function: return a Device Farm/Appium
+    screenshot PNG.
     """
     with _lock:
         job = _jobs.get(jid)
@@ -358,7 +363,7 @@ def shot(jid: str, step: int) -> Response:
 
 
 def _phone_svg(device: str, step: int, total: int, text: str) -> str:
-    """휴대폰 모양 SVG. 현재 스텝을 화면에 그려 '진행 중' 느낌을 준다."""
+    """Phone-shaped SVG. Draws the current step on the screen to convey an 'in progress' feel."""
     safe = (text[:38] + "…") if len(text) > 38 else text
     safe = safe.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     done = step >= total and total > 0

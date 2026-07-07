@@ -1,8 +1,8 @@
 version: 0.1
 
 # AWS Device Farm custom test environment spec (Appium 3 + Python).
-# AWS 기본 스펙 기반. Device Farm 리눅스 호스트에서 requirements.txt 를 직접 설치하므로
-# wheelhouse 를 미리 빌드할 필요 없음(인터넷에서 자동 설치).
+# Based on the AWS default spec. The Device Farm Linux host installs requirements.txt
+# directly, so there is no need to pre-build a wheelhouse (installed automatically from the internet).
 android_test_host: amazon_linux_2
 
 phases:
@@ -17,7 +17,7 @@ phases:
       - python -m pip install -r requirements.txt
   pre_test:
     commands:
-      # 기기별 capability 는 DEVICEFARM_* 환경변수에서 주입되어 Appium 서버 기본값으로 설정됨.
+      # Per-device capabilities are injected from DEVICEFARM_* env vars and set as Appium server defaults.
       - |-
         appium --base-path=$APPIUM_BASE_PATH --log-timestamp \
           --log-no-colors --relaxed-security --default-capabilities \

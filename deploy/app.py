@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""CDK 앱 진입점.
+"""CDK app entry point.
 
-배포 리전은 지원 리전(예: us-west-2)이어야 한다(AgentCore Runtime + Browser Tool).
-계정/리전은 CDK 기본 환경(CDK_DEFAULT_ACCOUNT/REGION 또는 --profile)에서 온다.
+The deployment region must be a supported region (e.g. us-west-2) for
+AgentCore Runtime + Browser Tool. Account/region are taken from the CDK
+default environment (CDK_DEFAULT_ACCOUNT/REGION or --profile).
 """
 import os
 import aws_cdk as cdk
@@ -11,7 +12,7 @@ from stacks.qa_automation_stack import QaAutomationStack
 
 app = cdk.App()
 
-# 스택 이름은 계정마다 충돌 없이 배포하도록 context 로 재정의 가능 (-c stackName=...).
+# The stack name can be overridden via context (-c stackName=...) to deploy without collisions across accounts.
 stack_name = app.node.try_get_context("stackName") or "QaAutomationStack"
 
 QaAutomationStack(

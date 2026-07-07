@@ -1,10 +1,11 @@
-"""병렬 러너 — N개의 독립 Browser Tool 세션을 동시에 실행.
+"""Parallel runner - runs N independent Browser Tool sessions concurrently.
 
-각 변형 스크립트를 스레드 1개 = 세션 1개로 돌린다(SDK에 async 클라이언트 없음 → 스레드).
-각 세션은 독립 microVM(완전 격리) — 우리 박스엔 부하 없음(실행이 전부 AWS 쪽).
-반드시 stop() 으로 세션 정리(idle 과금 방지).
+Each variation script runs on one thread = one session (the SDK has no async
+client, so threads are used). Each session is an independent microVM (fully
+isolated), so there is no load on our box (all execution happens on the AWS side).
+Sessions must be cleaned up with stop() to avoid idle billing.
 
-상태/스크린샷은 job 별로 인메모리 추적 → 대시보드가 폴링.
+Status/screenshots are tracked in memory per job for the dashboard to poll.
 """
 from __future__ import annotations
 
@@ -13,9 +14,9 @@ import threading
 from pathlib import Path
 
 REGION = "us-west-2"
-SESSION_TIMEOUT = 300  # 데모용 짧게
+SESSION_TIMEOUT = 300  # kept short for the demo
 
-# 코드 펜스 제거(LLM 이 ```python ... ``` 로 감싸는 경우 대비).
+# Strip code fences (in case the LLM wraps output in ```python ... ```).
 _FENCE = re.compile(r"^```[a-zA-Z]*\n|\n```$")
 
 
@@ -32,12 +33,12 @@ def _load_run_fn(code: str):
     exec(compile(_clean(code), "<variation>", "exec"), ns)  # noqa: S102
     fn = ns.get("run")
     if fn is None:
-        raise RuntimeError("variation 에 async def run(page) 없음")
+        raise RuntimeError("variation does not define async def run(page)")
     return fn
 
 
 class ParallelJobs:
-    """병렬 잡 상태 관리."""
+    """Manages parallel job state."""
 
     def __init__(self, out_dir: Path):
         self.out_dir = out_dir

@@ -116,11 +116,11 @@ AGENTCORE_REGION=us-west-2 \
 
 **웹 — Playwright + AgentCore Browser Tool**
 
-https://github.com/hanaarmi/qa-agentcore-deploy/releases/download/video/playwright-agentcorebrowser-demo.mp4
+https://github.com/hanaarmi/agentcore-qa-automation/releases/download/video/playwright-agentcorebrowser-demo.mp4
 
 **모바일 — Appium + AWS Device Farm**
 
-https://github.com/hanaarmi/qa-agentcore-deploy/releases/download/video/appium-devicefarm-demo.mp4
+https://github.com/hanaarmi/agentcore-qa-automation/releases/download/video/appium-devicefarm-demo.mp4
 
 ## 결론
 
