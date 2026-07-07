@@ -11,8 +11,9 @@ node_modules/
 **/.bedrock_agentcore.yaml
 infra/config.json
 
-# 실행 산출물 (스크린샷/영상/생성 스크립트)
+# 실행 산출물 (스크린샷/영상/생성 스크립트/테스트 패키지)
 web/out/
+/out/
 artifacts/
 demovideo/
 *.mp4

@@ -17,8 +17,10 @@ import boto3
 
 _ROOT = Path(__file__).resolve().parent.parent
 _INFRA = _ROOT / "infra"
-if str(_INFRA) not in sys.path:
-    sys.path.insert(0, str(_INFRA))
+_AGENT = _ROOT / "agent"
+for _p in (_INFRA, _AGENT):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
 # infra 의 검증된 실행 함수 + 설정 리졸버 재사용.
 import devicefarm_run as dfr  # noqa: E402
@@ -34,6 +36,31 @@ _SHOT_DIR = _ROOT / "artifacts" / "dashboard_run"
 def _cfg():
     # config.json → env → CDK 가 만든 프로젝트/풀 이름 조회 순으로 자동 구성.
     return resolve_config()
+
+
+# 모바일 테스트 패키지(zip). 리포엔 시나리오 JSON 샘플만 있고 zip 은 산출물이라 없다 →
+# 없으면 샘플 시나리오를 Appium 으로 변환해 그 자리에서 만든다(수동 단계 제거).
+_PKG_PATH = _ROOT / "out" / "appium_pkg.zip"
+_SAMPLE_SCENARIO = _ROOT / "samples" / "happy_path_order.json"
+
+
+def _ensure_pkg() -> Path:
+    """out/appium_pkg.zip 이 없으면 샘플 시나리오 → Appium 변환 → 패키징으로 생성."""
+    if _PKG_PATH.is_file():
+        return _PKG_PATH
+
+    import json
+    from convert import convert_scenario  # agent/convert.py (로컬 변환)
+    from package_appium import build      # infra/package_appium.py
+
+    scenario = json.loads(_SAMPLE_SCENARIO.read_text())
+    appium_code = convert_scenario(scenario, "appium")
+
+    out_py = _ROOT / "out" / "happy_path_order_appium.py"
+    out_py.parent.mkdir(parents=True, exist_ok=True)
+    out_py.write_text(appium_code)
+    build(out_py, _PKG_PATH)
+    return _PKG_PATH
 
 
 def start_real_run(run_name: str) -> dict:
@@ -67,10 +94,13 @@ def _drive_real(run_name: str) -> None:
         client = boto3.client("devicefarm", region_name=cfg["region"])
 
         apk = _ROOT / "assets" / "deliveryapp-debug.apk"
-        pkg = _ROOT / "out/appium_pkg.zip"
         spec = _INFRA / "testspec_appium_python.yml"
 
-        _set(phase="uploading app", status="RUNNING")
+        # 테스트 패키지가 없으면 샘플 시나리오로 즉석 생성(수동 패키징 단계 제거).
+        _set(phase="packaging tests", status="RUNNING")
+        pkg = _ensure_pkg()
+
+        _set(phase="uploading app")
         app_arn = dfr.create_and_wait_upload(client, cfg["projectArn"], apk, "ANDROID_APP")
         _set(phase="uploading tests")
         test_arn = dfr.create_and_wait_upload(
