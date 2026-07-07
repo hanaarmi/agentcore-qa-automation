@@ -75,6 +75,7 @@ AWS_REGION=us-west-2 CDK_DEFAULT_REGION=us-west-2 npx aws-cdk@2 deploy --app "./
 
 | context 키 | 기본값 | 대상 |
 |---|---|---|
+| `stackName` | `QaAutomationStack` | CloudFormation 스택 이름 (계정/리전당 고유) |
 | `runtimeName` | `qaConvertAgent` | AgentCore Runtime 이름 (`[a-zA-Z][a-zA-Z0-9_]{0,47}`) |
 | `deviceFarmProject` | `qa-automation-demo` | Device Farm 프로젝트 이름 |
 | `devicePool` | `android-phones` | Device Pool 이름 |
@@ -84,6 +85,7 @@ AWS_REGION=us-west-2 CDK_DEFAULT_REGION=us-west-2 npx aws-cdk@2 deploy --app "./
 ```bash
 AWS_REGION=us-west-2 CDK_DEFAULT_REGION=us-west-2 \
   npx aws-cdk@2 deploy --app "./.venv/bin/python app.py" \
+  -c stackName=MyQaAutomationStack \
   -c runtimeName=myQaAgent \
   -c deviceFarmProject=my-qa-project \
   -c devicePool=my-android-phones \

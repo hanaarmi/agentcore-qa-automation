@@ -11,8 +11,11 @@ from stacks.qa_automation_stack import QaAutomationStack
 
 app = cdk.App()
 
+# 스택 이름은 계정마다 충돌 없이 배포하도록 context 로 재정의 가능 (-c stackName=...).
+stack_name = app.node.try_get_context("stackName") or "QaAutomationStack"
+
 QaAutomationStack(
-    app, "QaAutomationStack",
+    app, stack_name,
     env=cdk.Environment(
         account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
         region=os.environ.get("CDK_DEFAULT_REGION", "us-west-2"),
